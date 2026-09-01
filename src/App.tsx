@@ -2,6 +2,8 @@ import React, { useState } from 'react';
 import { useApp } from './context/AppContext';
 import { Header } from './components/layout/Header';
 import { SettingsModal } from './components/layout/SettingsModal';
+import { AuthModal } from './components/auth/AuthModal';
+import { AccountProvisionModal } from './components/admin/AccountProvisionModal';
 import { Banner } from './components/home/Banner';
 import { LessonGrid } from './components/home/LessonGrid';
 import { TheoryView } from './components/theory/TheoryView';
@@ -13,12 +15,11 @@ import { StatsDashboard } from './components/stats/StatsDashboard';
 import { ClassManager } from './components/admin/ClassManager';
 import { VirtualCasioCalculator } from './components/common/VirtualCasioCalculator';
 import { FormulaHandbook } from './components/common/FormulaHandbook';
-import { CheckCircle2, AlertCircle, Info, XCircle, GraduationCap, Sparkles } from 'lucide-react';
+import { CheckCircle2, AlertCircle, Info, XCircle, GraduationCap } from 'lucide-react';
 
 export const App: React.FC = () => {
   const {
     activeTab,
-    setActiveTab,
     toast,
     hideToast,
     isCalculatorOpen,
@@ -33,6 +34,10 @@ export const App: React.FC = () => {
   const [searchQuery, setSearchQuery] = useState<string>('');
   const [statusFilter, setStatusFilter] = useState<'all' | 'completed' | 'in_progress' | 'locked'>('all');
 
+  // Auth & Provisioning Modals State
+  const [isAuthOpen, setIsAuthOpen] = useState(false);
+  const [isAccountProvisionOpen, setIsAccountProvisionOpen] = useState(false);
+
   const handleResetFilters = () => {
     setSelectedSemester('all');
     setSelectedChapterId('all');
@@ -43,10 +48,25 @@ export const App: React.FC = () => {
   return (
     <div id="app-root" className="min-h-screen bg-slate-100/80 flex flex-col font-sans text-slate-900 antialiased selection:bg-teal-600 selection:text-white">
       {/* Top Main Navigation Header */}
-      <Header />
+      <Header
+        onOpenAuth={() => setIsAuthOpen(true)}
+        onOpenAccountProvision={() => setIsAccountProvisionOpen(true)}
+      />
 
       {/* Global Settings & Google Sheets Configuration Modal */}
       <SettingsModal />
+
+      {/* Auth & Login Modal */}
+      <AuthModal
+        isOpen={isAuthOpen}
+        onClose={() => setIsAuthOpen(false)}
+      />
+
+      {/* Account Provisioning Modal (For Teachers & Admins) */}
+      <AccountProvisionModal
+        isOpen={isAccountProvisionOpen}
+        onClose={() => setIsAccountProvisionOpen(false)}
+      />
 
       {/* Virtual Casio Calculator Modal */}
       <VirtualCasioCalculator
