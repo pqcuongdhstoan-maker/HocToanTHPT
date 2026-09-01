@@ -254,7 +254,7 @@ export const VirtualCasioCalculator: React.FC<{ isOpen: boolean; onClose: () => 
         {calcMode === 'derivative' && (
           <div className="space-y-4 text-xs">
             <div className="font-bold text-slate-300 text-center">
-              Tính Đạo Hàm Tại Điểm: $\frac{d}{dx}f(x)|_{x=x_0}$
+              Tính Đạo Hàm Tại Điểm: f&apos;(x₀)
             </div>
             <div className="space-y-2">
               <div>

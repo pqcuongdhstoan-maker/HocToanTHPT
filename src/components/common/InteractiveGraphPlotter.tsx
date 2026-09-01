@@ -501,17 +501,17 @@ export const InteractiveGraphPlotter: React.FC = () => {
             </h4>
             {funcType === 'cubic' && (
               <p className="text-emerald-900 leading-relaxed text-[11px]">
-                Hàm bậc 3 có đồ thị nhận <strong>Điểm uốn $I(-\frac{b}{3a}; f(-\frac{b}{3a}))$</strong> làm tâm đối xứng. Khi $a &gt; 0$, nhánh ngoài cùng bên phải đi lên.
+                Hàm bậc 3 có đồ thị nhận <strong>Điểm uốn I</strong> làm tâm đối xứng. Khi hệ số a &gt; 0, nhánh ngoài cùng bên phải đi lên.
               </p>
             )}
             {funcType === 'fractional_1_1' && (
               <p className="text-emerald-900 leading-relaxed text-[11px]">
-                Đồ thị là một đường <strong>Hyperbol</strong> nhận giao điểm của 2 đường tiệm cận $I(-\frac{d}{c}; \frac{a}{c})$ làm tâm đối xứng.
+                Đồ thị là một đường <strong>Hyperbol</strong> nhận giao điểm của 2 đường tiệm cận làm tâm đối xứng.
               </p>
             )}
             {funcType === 'fractional_2_1' && (
               <p className="text-emerald-900 leading-relaxed text-[11px]">
-                Đồ thị có <strong>tiệm cận xiên $y = ax + (b - ad)$</strong> và tiệm cận đứng $x = -d$.
+                Đồ thị có <strong>tiệm cận xiên</strong> và <strong>tiệm cận đứng</strong>.
               </p>
             )}
           </div>
