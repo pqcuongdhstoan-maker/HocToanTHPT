@@ -1,3 +1,2 @@
-export { MathContent, MathRenderer, normalizeMathDelimiters, formatContentWithProtectedMath } from './MathContent';
+export { MathContent, MathRenderer } from './MathContent';
 export type { MathContentProps } from './MathContent';
-

@@ -29,13 +29,21 @@
 
 /* Custom MathJax & Typography Tweaks */
 .math-content {
-  max-width: 100%;
-  line-height: 1.85;
+  color: inherit;
+  font-size: inherit;
+  line-height: 1.8;
   overflow-wrap: break-word;
 }
 
 .math-content mjx-container {
   outline: none !important;
+  color: inherit;
+}
+
+.math-content mjx-container:not([display="true"]) {
+  display: inline-block;
+  vertical-align: middle;
+  margin: 0 2px;
 }
 
 .math-content mjx-container[display="true"] {
@@ -43,19 +51,13 @@
   max-width: 100%;
   overflow-x: auto;
   overflow-y: hidden;
-  padding: 10px 16px;
-  margin: 14px 0;
+  margin: 12px 0;
+  padding: 6px 0;
   text-align: center;
-  background: rgba(240, 253, 250, 0.7);
-  border: 1px solid rgba(204, 251, 241, 0.8);
-  border-radius: 0.75rem;
 }
 
-.math-content mjx-container:not([display="true"]) {
-  display: inline-block;
-  max-width: 100%;
-  vertical-align: middle;
-  margin: 0 2px;
+mjx-container {
+  color: inherit;
 }
 
 /* Smooth custom scrollbars */

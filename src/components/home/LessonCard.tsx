@@ -1,6 +1,7 @@
 import React from 'react';
 import { Lesson, Chapter, StudentLessonProgress } from '../../types';
 import { useApp } from '../../context/AppContext';
+import { MathContent } from '../common/MathContent';
 import {
   Lock,
   CheckCircle2,
@@ -82,11 +83,11 @@ export const LessonCard: React.FC<LessonCardProps> = ({
 
         {/* Title & Description */}
         <h3 className="text-base font-bold text-slate-900 leading-snug line-clamp-2 min-h-[44px]">
-          {lesson.title}
+          <MathContent content={lesson.title} />
         </h3>
-        <p className="mt-1.5 text-xs text-slate-500 line-clamp-2 leading-relaxed">
-          {lesson.description}
-        </p>
+        <div className="mt-1.5 text-xs text-slate-600 line-clamp-2 leading-relaxed">
+          <MathContent content={lesson.description} />
+        </div>
 
         {/* 4 Question Types Tag Matrix */}
         <div className="mt-4 pt-3 border-t border-slate-100 grid grid-cols-2 gap-2 text-xs">
