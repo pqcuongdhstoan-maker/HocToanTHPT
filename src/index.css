@@ -28,31 +28,36 @@
 }
 
 /* Custom MathJax & Typography Tweaks */
+.math-text,
 .math-content {
+  max-width: 100%;
   color: inherit;
   font-size: inherit;
   line-height: 1.8;
   overflow-wrap: break-word;
 }
 
+.math-text mjx-container,
 .math-content mjx-container {
   outline: none !important;
   color: inherit;
 }
 
+.math-text mjx-container:not([display="true"]),
 .math-content mjx-container:not([display="true"]) {
   display: inline-block;
   vertical-align: middle;
   margin: 0 2px;
 }
 
+.math-text mjx-container[display="true"],
 .math-content mjx-container[display="true"] {
   display: block;
   max-width: 100%;
   overflow-x: auto;
   overflow-y: hidden;
   margin: 12px 0;
-  padding: 6px 0;
+  padding: 8px 0;
   text-align: center;
 }
 
