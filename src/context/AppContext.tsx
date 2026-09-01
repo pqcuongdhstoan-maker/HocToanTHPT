@@ -1,6 +1,6 @@
 import React, { createContext, useContext, useState, useEffect, ReactNode, useCallback } from 'react';
 import { UserProfile, Chapter, Lesson, ClassGroup, StudentLessonProgress, Attempt, Question } from '../types';
-import { DEMO_USERS } from '../data/seedCurriculum';
+import { DEMO_USERS, CHAPTERS, LESSONS, INITIAL_CLASSES } from '../data/seedCurriculum';
 import { api } from '../services/api';
 import {
   fetchGoogleSheetLive,
@@ -23,16 +23,16 @@ export interface SheetSyncStatus {
   sheetGid: string;
   autoSync: boolean;
   lastSyncedAt?: string;
-  classCount: number;
-  studentCount: number;
+  classCount?: number;
+  studentCount?: number;
   isSyncing: boolean;
-  error?: string | null;
+  error: string | null;
 }
 
 interface AppContextType {
   currentUser: UserProfile;
   setCurrentUser: (user: UserProfile) => void;
-  switchRole: (role: 'student' | 'teacher' | 'admin') => void;
+  switchRole: (role: UserProfile['role']) => void;
   chapters: Chapter[];
   lessons: Lesson[];
   classes: ClassGroup[];
@@ -46,7 +46,7 @@ interface AppContextType {
   selectedLessonId: string;
   setSelectedLessonId: (id: string) => void;
   activeAttempt: Attempt | null;
-  setActiveAttempt: (att: Attempt | null) => void;
+  setActiveAttempt: (a: Attempt | null) => void;
   activeQuestions: Question[];
   setActiveQuestions: (q: Question[]) => void;
   toast: ToastState;
@@ -76,16 +76,43 @@ const AppContext = createContext<AppContextType | undefined>(undefined);
 export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
   // Default to student demo user
   const [currentUser, setCurrentUser] = useState<UserProfile>(DEMO_USERS[2]);
-  const [chapters, setChapters] = useState<Chapter[]>([]);
-  const [lessons, setLessons] = useState<Lesson[]>([]);
-  const [classes, setClasses] = useState<ClassGroup[]>([]);
-  const [students, setStudents] = useState<UserProfile[]>([]);
-  const [studentProgress, setStudentProgress] = useState<Record<string, StudentLessonProgress>>({});
+  const [chapters, setChapters] = useState<Chapter[]>(CHAPTERS);
+  const [lessons, setLessons] = useState<Lesson[]>(LESSONS);
+  const [classes, setClasses] = useState<ClassGroup[]>(INITIAL_CLASSES);
+  const [students, setStudents] = useState<UserProfile[]>(() => DEMO_USERS.filter((u) => u.role === 'student'));
+  const [studentProgress, setStudentProgress] = useState<Record<string, StudentLessonProgress>>(() => {
+    const initialProg: Record<string, StudentLessonProgress> = {
+      'lesson-1': {
+        lessonId: 'lesson-1',
+        isUnlocked: true,
+        masteryPercent: 65,
+        passed: false,
+        attemptsCount: 1,
+        bestScore: 6.5,
+        status: 'in_progress',
+        lastAttemptAt: new Date().toISOString(),
+      },
+    };
+    LESSONS.forEach((l, idx) => {
+      if (idx > 0) {
+        initialProg[l.id] = {
+          lessonId: l.id,
+          isUnlocked: false,
+          masteryPercent: 0,
+          passed: false,
+          attemptsCount: 0,
+          bestScore: 0,
+          status: 'locked',
+        };
+      }
+    });
+    return initialProg;
+  });
   const [activeTab, setActiveTab] = useState<AppTab>('lessons');
   const [selectedLessonId, setSelectedLessonId] = useState<string>('lesson-1');
   const [activeAttempt, setActiveAttempt] = useState<Attempt | null>(null);
   const [activeQuestions, setActiveQuestions] = useState<Question[]>([]);
-  const [isLoading, setIsLoading] = useState<boolean>(true);
+  const [isLoading, setIsLoading] = useState<boolean>(false);
 
   // Tools & Modals State
   const [isSettingsOpen, setIsSettingsOpen] = useState<boolean>(false);
@@ -126,30 +153,19 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
 
   const loadData = async () => {
     try {
-      setIsLoading(true);
       const data = await api.getCurriculum();
-      if (data.chapters) setChapters(data.chapters);
-      if (data.lessons) setLessons(data.lessons);
-      if (data.classes) setClasses(data.classes);
-
-      // Load users list
-      try {
-        const usersRes = await fetch('/api/auth/users');
-        const usersData = await usersRes.json();
-        if (usersData.users) {
-          setStudents(usersData.users.filter((u: UserProfile) => u.role === 'student'));
-        }
-      } catch (err) {
-        console.warn('Could not fetch users list:', err);
-      }
+      if (data.chapters && data.chapters.length > 0) setChapters(data.chapters);
+      if (data.lessons && data.lessons.length > 0) setLessons(data.lessons);
+      if (data.classes && data.classes.length > 0) setClasses(data.classes);
 
       if (currentUser?.id) {
         const prog = await api.getStudentProgress(currentUser.id);
-        setStudentProgress(prog);
+        if (prog && Object.keys(prog).length > 0) {
+          setStudentProgress(prog);
+        }
       }
     } catch (err) {
-      console.error('Failed to load initial data:', err);
-      showToast('Lỗi nạp dữ liệu', 'Không thể kết nối máy chủ, đang dùng dữ liệu khởi tạo.', 'warning');
+      console.warn('Loaded curriculum from fallback:', err);
     } finally {
       setIsLoading(false);
     }
