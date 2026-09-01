@@ -1,0 +1,6 @@
+{
+  "name": "Tự Luyện Toán 12 – CT GDPT 2018",
+  "description": "Hệ thống tự luyện Toán 12 - Chương trình GDPT 2018. Giáo viên: Phan Quốc Cường. Hỗ trợ lý thuyết tương tác, 4 dạng câu hỏi, upload DOCX/OMML, chống chuyển tab, mở khóa 80% mastery và trợ lý AI Socratic.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}

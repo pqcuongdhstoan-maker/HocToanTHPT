@@ -1,0 +1,82 @@
+<!doctype html>
+<html lang="vi">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Tự Luyện Toán 12 – CT GDPT 2018 | GV Phan Quốc Cường</title>
+    <meta name="description" content="Hệ thống tự luyện Toán 12 - Chương trình GDPT 2018. Giáo viên: Phan Quốc Cường. Hỗ trợ lý thuyết tương tác, 4 dạng câu hỏi, upload DOCX/OMML, chống chuyển tab, mở khóa 80% mastery và trợ lý AI Socratic." />
+    <meta property="og:title" content="Tự Luyện Toán 12 – CT GDPT 2018 | GV Phan Quốc Cường" />
+    <meta property="og:description" content="Hệ thống tự luyện Toán 12 - Chương trình GDPT 2018. Giáo viên: Phan Quốc Cường. Hỗ trợ lý thuyết tương tác, 4 dạng câu hỏi, upload DOCX/OMML, chống chuyển tab, mở khóa 80% mastery và trợ lý AI Socratic." />
+    <meta property="og:type" content="website" />
+    <meta name="twitter:card" content="summary_large_image" />
+    
+    <!-- Google Fonts: Be Vietnam Pro & Inter -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Be+Vietnam+Pro:ital,wght@0,300;0,400;0,500;0,600;0,700;0,800;1,400&family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+    
+    <!-- MathJax 3 Configuration for Inline and Display Math -->
+    <script>
+      window.MathJax = {
+        loader: {
+          load: [
+            '[tex]/ams',
+            '[tex]/newcommand',
+            '[tex]/noerrors',
+            '[tex]/noundefined'
+          ]
+        },
+        tex: {
+          inlineMath: [
+            ['$', '$'],
+            ['\\(', '\\)']
+          ],
+          displayMath: [
+            ['$$', '$$'],
+            ['\\[', '\\]']
+          ],
+          processEscapes: true,
+          processEnvironments: true,
+          packages: {
+            '[+]': [
+              'ams',
+              'newcommand',
+              'noerrors',
+              'noundefined'
+            ]
+          }
+        },
+        options: {
+          skipHtmlTags: [
+            'script',
+            'noscript',
+            'style',
+            'textarea',
+            'pre',
+            'code'
+          ]
+        },
+        chtml: {
+          scale: 1.05,
+          matchFontHeight: true,
+          displayAlign: 'center'
+        },
+        startup: {
+          typeset: false,
+          ready: () => {
+            if (window.MathJax) {
+              window.MathJax.startup.defaultReady();
+              window.dispatchEvent(new Event('mathjax-ready'));
+            }
+          }
+        }
+      };
+    </script>
+    <script id="MathJax-script" async src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js"></script>
+  </head>
+  <body class="bg-slate-50 text-slate-800 antialiased font-sans selection:bg-teal-100 selection:text-teal-900">
+    <div id="root"></div>
+    <script type="module" src="/src/main.tsx"></script>
+  </body>
+</html>
+
