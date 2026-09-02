@@ -10,7 +10,11 @@ const mathJaxConfig = {
     load: [
       '[tex]/ams',
       '[tex]/noerrors',
-      '[tex]/noundefined'
+      '[tex]/noundefined',
+      '[tex]/mathtools',
+      '[tex]/physics',
+      'input/mml',
+      'output/chtml'
     ]
   },
   tex: {
@@ -28,9 +32,15 @@ const mathJaxConfig = {
       '[+]': [
         'ams',
         'noerrors',
-        'noundefined'
+        'noundefined',
+        'mathtools'
       ]
     }
+  },
+  chtml: {
+    scale: 1.05,
+    minScale: 0.8,
+    matchFontHeight: true
   },
   options: {
     skipHtmlTags: [
