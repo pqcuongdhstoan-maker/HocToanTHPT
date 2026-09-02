@@ -85,13 +85,32 @@ export function normalizeMathSymbols(raw: string): string {
 }
 
 /**
+ * Cleans leading duplicate question number markers: "Câu 1.", "Câu 1:", "Bài 1."
+ * Supports standard whitespace and NBSP (\u00A0).
+ */
+export function cleanQuestionStem(rawStem: string): string {
+  if (!rawStem) return '';
+  let s = rawStem.replace(/\u00A0/g, ' ').trim();
+
+  // Strip leading question marker: "Câu 1.", "Câu 1:", "Bài 1.", "Câu 1 -", "Câu 1 "
+  s = s.replace(/^(?:câu|bài|question)[\s\u00A0]*\d+[\s\u00A0.:\-–]*/i, '').trim();
+
+  // Consolidate whitespace and empty lines
+  s = s.replace(/[ \t]+/g, ' ');
+  s = s.replace(/\n\s*\n\s*\n+/g, '\n\n');
+
+  return s;
+}
+
+/**
  * Safely wraps mathematical notations in $...$ for visual MathJax rendering
  * only on pure text segments, preventing double wrapping of existing formulas.
  */
 export function ensureMathDelimiters(text: string): string {
   if (!text) return '';
 
-  const nodes = parseContentToNodes(text);
+  const cleanText = text.replace(/\u00A0/g, ' ');
+  const nodes = parseContentToNodes(cleanText);
   const processed = nodes.map((node) => {
     if (node.type !== 'text') {
       return node; // Preserve existing math intact!
@@ -104,6 +123,9 @@ export function ensureMathDelimiters(text: string): string {
 
     // Wrap f(x), f'(x), g(x), y=f(x)
     t = t.replace(/\b([fg]\s*\(\s*x\s*\)|[fg]'\s*\(\s*x\s*\)|y\s*=\s*[fg]\s*\(\s*x\s*\))/g, (m) => `$${m}$`);
+
+    // Wrap polynomials and variables like y = -x^3 + 3x, 200a + b
+    t = t.replace(/\b([y]\s*=\s*-[a-z0-9\^+\-\s]+|[0-9]+[a-z]\s*[+\-]\s*[a-z0-9]+)\b/g, (m) => `$${m}$`);
 
     // Wrap geometric angle expressions: \widehat{A} = 45^0 or \widehat{A} = 45^\circ
     t = t.replace(/(\\widehat\{[A-Z]\}\s*=\s*\d+[\^0°^{\\circ}]*|\\hat\{[A-Z]\}\s*=\s*\d+[\^0°^{\\circ}]*)/g, (m) => {
@@ -120,8 +142,8 @@ export function ensureMathDelimiters(text: string): string {
     // Wrap square roots: 30\sqrt{2}, 15\sqrt{3}, \sqrt{2}
     t = t.replace(/(\d*\\sqrt\{[^\}]+\}|\d*\\sqrt\s*\d+)/g, (m) => `$${m}$`);
 
-    // Wrap intervals: (-\infty; 1), (-2; 1), (-2; +\infty), (-\infty; -2), (-1; 0)
-    t = t.replace(/\(([+-]?\\infty|-?\d+)\s*;\s*([+-]?\\infty|-?\d+)\)/g, (m) => `$${m}$`);
+    // Wrap intervals: (-\infty; 1), (-2; 1), (-2; +\infty), (-\infty; -2), (-1; 0), (a; b)
+    t = t.replace(/\(([+-]?\\infty|-?\d+|[a-z])\s*;\s*([+-]?\\infty|-?\d+|[a-z])\)/gi, (m) => `$${m}$`);
 
     // Wrap relations: f(2024) < f(2025)
     t = t.replace(/\b([fg]\s*\(\s*\d+\s*\)\s*[<>=≤≥]\s*[fg]\s*\(\s*\d+\s*\))/g, (m) => `$${m}$`);
@@ -153,7 +175,7 @@ export function extractMcqOptions(fullText: string): {
   }
 
   const firstMatchIndex = matches[0].index !== undefined ? matches[0].index : 0;
-  const stem = fullText.substring(0, firstMatchIndex).trim();
+  const stem = cleanQuestionStem(fullText.substring(0, firstMatchIndex));
 
   let correctAnswer = 'A';
   const optionsMap: Record<string, string> = { A: '', B: '', C: '', D: '' };
@@ -223,7 +245,7 @@ export function extractTrueFalseStatements(fullText: string): {
   }
 
   const firstMatchIndex = matches[0].index !== undefined ? matches[0].index : 0;
-  const stem = fullText.substring(0, firstMatchIndex).trim();
+  const stem = cleanQuestionStem(fullText.substring(0, firstMatchIndex));
 
   const statementsMap: Record<string, { statement: string; isCorrect: boolean }> = {
     a: { statement: 'Mệnh đề a', isCorrect: true },
@@ -890,7 +912,7 @@ export async function parseDocxFile(
           difficulty: 'NB',
           order: qOrder,
           points: 0.25,
-          stem: mcqResult.isMcq ? mcqResult.stem : ensureMathDelimiters(fullText),
+          stem: mcqResult.isMcq ? mcqResult.stem : ensureMathDelimiters(cleanQuestionStem(fullText)),
           media,
           options: mcqResult.options.length > 0 ? mcqResult.options : [
             { id: 'A', text: 'Phương án A', latex: 'Phương án A' },
@@ -917,7 +939,7 @@ export async function parseDocxFile(
           difficulty: 'TH',
           order: qOrder,
           points: 1.0,
-          stem: tfResult.isTf ? tfResult.stem : ensureMathDelimiters(fullText),
+          stem: tfResult.isTf ? tfResult.stem : ensureMathDelimiters(cleanQuestionStem(fullText)),
           media,
           statements: tfResult.statements.length > 0 ? tfResult.statements : [
             { id: 'a', statement: 'Mệnh đề a', isCorrect: true },
@@ -948,7 +970,7 @@ export async function parseDocxFile(
           difficulty: 'VD',
           order: qOrder,
           points: 0.5,
-          stem: ensureMathDelimiters(fullText),
+          stem: ensureMathDelimiters(cleanQuestionStem(fullText)),
           media,
           shortAnswerKey: {
             acceptedValues: [acceptedVal],
@@ -971,7 +993,7 @@ export async function parseDocxFile(
           difficulty: 'VDC',
           order: qOrder,
           points: 1.0,
-          stem: ensureMathDelimiters(fullText),
+          stem: ensureMathDelimiters(cleanQuestionStem(fullText)),
           media,
           solution: ensureMathDelimiters(solution),
           tags: ['Phần IV', 'Tự luận'],
@@ -1039,7 +1061,7 @@ export async function parseDocxFile(
         difficulty: 'VD',
         order: qOrder,
         points: 0.5,
-        stem: ensureMathDelimiters(fullText),
+        stem: ensureMathDelimiters(cleanQuestionStem(fullText)),
         media,
         shortAnswerKey: {
           acceptedValues: ['0'],
@@ -1062,7 +1084,7 @@ export async function parseDocxFile(
       difficulty: 'VDC',
       order: qOrder,
       points: 1.0,
-      stem: ensureMathDelimiters(fullText),
+      stem: ensureMathDelimiters(cleanQuestionStem(fullText)),
       media,
       solution: ensureMathDelimiters(solution),
       tags: ['Phần IV', 'Tự luận'],

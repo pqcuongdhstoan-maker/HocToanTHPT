@@ -28,13 +28,53 @@
 }
 
 /* Custom MathJax & Typography Tweaks for Web, Mobile, and WebView */
+.question-paragraph {
+  display: block;
+  margin: 0;
+  padding: 0;
+  line-height: 1.75;
+  white-space: normal;
+  overflow-wrap: normal;
+  word-break: normal;
+}
+
+.question-paragraph + .question-paragraph {
+  margin-top: 8px;
+}
+
+.inline-math {
+  display: inline-block;
+  vertical-align: baseline;
+  margin: 0 0.12em;
+  max-width: 100%;
+}
+
+.block-math {
+  display: block;
+  max-width: 100%;
+  margin: 12px 0;
+  overflow-x: auto;
+}
+
+.question-card__header {
+  margin-bottom: 10px;
+}
+
+.question-card__body {
+  margin-top: 0;
+  padding-top: 0;
+  min-height: 0;
+}
+
 .math-text,
 .math-content {
   max-width: 100%;
   color: inherit;
   font-size: inherit;
-  line-height: 1.8;
-  overflow-wrap: break-word;
+  line-height: 1.75;
+  overflow-wrap: normal;
+  word-break: normal;
+  white-space: normal;
   text-rendering: geometricPrecision;
 }
 
@@ -51,7 +91,7 @@
 .math-content mjx-container:not([display="true"]) {
   display: inline-block;
   vertical-align: -0.16em !important;
-  margin: 0 2px;
+  margin: 0 0.12em;
   max-width: 100%;
 }
 
@@ -61,8 +101,8 @@
   max-width: 100%;
   overflow-x: auto;
   overflow-y: hidden;
-  margin: 14px 0;
-  padding: 10px 0;
+  margin: 12px 0;
+  padding: 6px 0;
   text-align: center;
   -webkit-overflow-scrolling: touch;
 }

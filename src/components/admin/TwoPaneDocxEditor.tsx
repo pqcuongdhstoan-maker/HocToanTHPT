@@ -14,6 +14,7 @@ import {
   detokenizeInternalSource,
 } from '../../utils/docxSourceFormat';
 import { MathContent, MathText } from '../MathText';
+import { cleanQuestionStem } from '../../services/docxParser';
 import { VisualMathEditorModal } from '../common/VisualMathEditorModal';
 import { VisualRichMathEditor } from '../common/VisualRichMathEditor';
 import {
@@ -583,97 +584,99 @@ export const TwoPaneDocxEditor: React.FC<TwoPaneDocxEditorProps> = ({
                     }`}
                   >
                     {/* Card Top Header: Question Number, Points, Badges, Action Icons */}
-                    <div className="flex flex-wrap items-center justify-between gap-2 pb-2">
-                      <div className="flex flex-wrap items-center space-x-2">
+                    <div className="flex items-center justify-between gap-2 pb-2.5 border-b border-slate-100 question-card__header">
+                      <div className="flex flex-wrap items-center gap-1.5 sm:gap-2">
                         {/* [Phần X - Câu Y.] Badge */}
-                        <span className="border border-blue-400 text-blue-700 bg-white font-bold px-3 py-1 rounded-lg text-xs shadow-2xs">
+                        <span className="border border-blue-400 text-blue-700 bg-white font-bold px-2.5 py-1 rounded-lg text-xs shadow-2xs">
                           {sectionMeta.badge} - Câu {idx + 1}.
                         </span>
 
-                      {/* [Nhập điểm] */}
-                      <div className="flex items-center space-x-1 border border-slate-300 bg-white px-2.5 py-1 rounded-lg text-xs">
-                        <span className="text-slate-600 font-semibold">Nhập điểm:</span>
-                        <input
-                          type="number"
-                          step="0.05"
-                          min="0.1"
-                          max="10"
-                          value={q.points || 0.25}
-                          onChange={(e) => handleUpdatePoints(idx, parseFloat(e.target.value) || 0.25)}
-                          className="w-12 bg-transparent text-xs font-bold text-blue-800 text-center focus:outline-none"
-                        />
+                        {/* [Nhập điểm] */}
+                        <div className="flex items-center space-x-1 border border-slate-300 bg-white px-2 py-1 rounded-lg text-xs">
+                          <span className="text-slate-600 font-semibold text-[11px]">Nhập điểm:</span>
+                          <input
+                            type="number"
+                            step="0.05"
+                            min="0.1"
+                            max="10"
+                            value={q.points || 0.25}
+                            onChange={(e) => handleUpdatePoints(idx, parseFloat(e.target.value) || 0.25)}
+                            className="w-10 bg-transparent text-xs font-bold text-blue-800 text-center focus:outline-none"
+                          />
+                        </div>
+
+                        {/* [📎Audio] */}
+                        <button
+                          type="button"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            alert(`Đính kèm Audio cho Câu ${idx + 1}`);
+                          }}
+                          className="border border-slate-300 bg-white hover:bg-blue-50 text-blue-600 px-2 py-1 rounded-lg text-xs font-semibold flex items-center space-x-1 transition"
+                          title="Đính kèm Audio"
+                        >
+                          <Volume2 className="w-3.5 h-3.5 text-blue-600" />
+                          <span className="hidden sm:inline">Audio</span>
+                        </button>
+
+                        {/* [Trắc nghiệm ▾] Type Selector */}
+                        <select
+                          value={q.type}
+                          onChange={(e) => {
+                            const newType = e.target.value as QuestionType;
+                            const updated = questions.map((item, qIndex) =>
+                              qIndex === idx ? { ...item, type: newType } : item
+                            );
+                            updateQuestionsAndSyncSource(updated);
+                          }}
+                          className="border border-slate-300 bg-white text-slate-600 px-2 py-1 rounded-lg text-xs font-semibold focus:outline-none"
+                        >
+                          <option value="mcq">Trắc nghiệm</option>
+                          <option value="true_false">Đúng / Sai</option>
+                          <option value="short_answer">Trả lời ngắn</option>
+                          <option value="essay">Tự luận</option>
+                        </select>
+
+                        {/* [🏷️] Tag Icon */}
+                        <span className="p-1 text-slate-400 hover:text-slate-600 cursor-pointer" title="Cài đặt mức độ">
+                          <Sliders className="w-3.5 h-3.5 text-blue-600" />
+                        </span>
+
+                        {/* [🔄 Đổi câu khác] */}
+                        <button
+                          type="button"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            handleDuplicateQuestion(idx);
+                          }}
+                          className="text-blue-600 hover:text-blue-800 text-xs font-semibold flex items-center space-x-1 px-1.5 py-1 transition"
+                          title="Đổi câu hỏi khác"
+                        >
+                          <RotateCw className="w-3.5 h-3.5" />
+                          <span className="hidden md:inline">Đổi câu khác</span>
+                        </button>
                       </div>
 
-                      {/* [📎Audio] */}
-                      <button
-                        type="button"
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          alert(`Đính kèm Audio cho Câu ${idx + 1}`);
-                        }}
-                        className="border border-slate-300 bg-white hover:bg-blue-50 text-blue-600 px-3 py-1 rounded-lg text-xs font-semibold flex items-center space-x-1 transition"
-                      >
-                        <Volume2 className="w-3.5 h-3.5 text-blue-600" />
-                        <span>Audio</span>
-                      </button>
-
-                      {/* [Trắc nghiệm ▾] Type Selector */}
-                      <select
-                        value={q.type}
-                        onChange={(e) => {
-                          const newType = e.target.value as QuestionType;
-                          const updated = questions.map((item, qIndex) =>
-                            qIndex === idx ? { ...item, type: newType } : item
-                          );
-                          updateQuestionsAndSyncSource(updated);
-                        }}
-                        className="border border-slate-300 bg-white text-slate-600 px-2.5 py-1 rounded-lg text-xs font-semibold focus:outline-none"
-                      >
-                        <option value="mcq">Trắc nghiệm</option>
-                        <option value="true_false">Đúng / Sai</option>
-                        <option value="short_answer">Trả lời ngắn</option>
-                        <option value="essay">Tự luận</option>
-                      </select>
-
-                      {/* [🏷️] Tag Icon */}
-                      <span className="p-1 text-slate-400 hover:text-slate-600 cursor-pointer">
-                        <Sliders className="w-3.5 h-3.5 text-blue-600" />
-                      </span>
-
-                      {/* [🔄 Đổi câu khác] */}
-                      <button
-                        type="button"
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          handleDuplicateQuestion(idx);
-                        }}
-                        className="text-blue-600 hover:text-blue-800 text-xs font-semibold flex items-center space-x-1 px-1.5 py-1 transition"
-                      >
-                        <RotateCw className="w-3.5 h-3.5" />
-                        <span>Đổi câu khác</span>
-                      </button>
+                      {/* Right Action Icons on Card */}
+                      <div className="flex items-center space-x-1 text-slate-400 shrink-0">
+                        <button
+                          type="button"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            handleDeleteQuestion(idx);
+                          }}
+                          className="p-1 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition"
+                          title="Xóa câu này"
+                        >
+                          <Trash2 className="w-4 h-4 text-slate-400 hover:text-rose-600" />
+                        </button>
+                      </div>
                     </div>
 
-                    {/* Right Action Icons on Card */}
-                    <div className="flex items-center space-x-1 text-slate-400">
-                      <button
-                        type="button"
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          handleDeleteQuestion(idx);
-                        }}
-                        className="p-1 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition"
-                        title="Xóa câu này"
-                      >
-                        <Trash2 className="w-4 h-4" />
-                      </button>
+                    {/* Question Stem Box (Bordered rectangular box) */}
+                    <div className="p-3.5 sm:p-4 bg-white rounded-xl border border-slate-300 text-slate-900 text-sm leading-relaxed font-sans shadow-2xs question-paragraph question-card__body">
+                      <MathContent content={cleanQuestionStem(q.stem)} />
                     </div>
-                  </div>
-
-                  {/* Question Stem Box (Bordered rectangular box) */}
-                  <div className="p-4 bg-white rounded-xl border border-slate-300 text-slate-900 text-sm leading-relaxed font-sans shadow-2xs">
-                    <MathContent content={q.stem} />
-                  </div>
 
                   {/* Attached Media Images if any */}
                   {q.media && q.media.filter((m) => m && m.url && m.url.trim().length > 10).length > 0 && (
