@@ -279,24 +279,28 @@ export const DocxImporter: React.FC = () => {
             </div>
           </div>
 
-          {/* Parsed Preview Section */}
-          {parsedQuestions.length > 0 && (
-            <div className="bg-white rounded-3xl border border-slate-200 p-6 shadow-sm space-y-6">
-              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-slate-100 pb-4">
+          {/* Parsed Pre-Publish Inspection Screen */}
+          {parsedQuestions.length > 0 && parseReport && (
+            <div className="bg-white rounded-3xl border border-teal-200 p-6 sm:p-8 shadow-sm space-y-6 animate-fadeIn">
+              {/* Top Inspection Header & Actions */}
+              <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 border-b border-slate-100 pb-5">
                 <div>
-                  <h3 className="text-base font-bold text-slate-900 flex items-center gap-2">
-                    <CheckCircle2 className="w-5 h-5 text-emerald-600" />
-                    <span>Đã nhận diện thành công {parsedQuestions.length} câu hỏi</span>
-                  </h3>
-                  <p className="text-xs text-slate-500">
-                    Bao gồm {parseReport?.formulaCount || 0} công thức toán học đã chuyển đổi sang LaTeX.
+                  <div className="flex items-center space-x-2 text-emerald-800 text-xs font-bold uppercase tracking-wider mb-1">
+                    <CheckCircle2 className="w-4 h-4 text-emerald-600" />
+                    <span>Báo Cáo Kiểm Tra Đề Thi Vừa Nhập Từ File Word</span>
+                  </div>
+                  <h2 className="text-lg sm:text-xl font-black text-slate-900">
+                    {parseReport.fileName} ({Math.round(parseReport.fileSize / 1024)} KB)
+                  </h2>
+                  <p className="text-xs text-slate-500 mt-0.5">
+                    Hệ thống đã bóc tách cấu trúc OOXML, công thức OMML/MathType và hình ảnh DrawingML/VML.
                   </p>
                 </div>
 
-                <div className="flex items-center space-x-2">
+                <div className="flex flex-wrap items-center gap-2">
                   <button
                     onClick={() => setActiveTab('editor')}
-                    className="px-5 py-2.5 bg-teal-50 hover:bg-teal-100 text-teal-900 font-bold text-xs rounded-xl border border-teal-200 transition flex items-center space-x-1.5 shadow-xs"
+                    className="px-5 py-2.5 bg-teal-50 hover:bg-teal-100 text-teal-900 font-bold text-xs rounded-xl border border-teal-300 transition flex items-center space-x-1.5 shadow-xs"
                   >
                     <Edit3 className="w-4 h-4 text-teal-700" />
                     <span>Mở trong Studio Soạn thảo (∑)</span>
@@ -305,27 +309,179 @@ export const DocxImporter: React.FC = () => {
                   <button
                     onClick={handleSaveToBank}
                     disabled={isSaving}
-                    className="px-6 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs rounded-xl transition flex items-center space-x-1.5 shadow"
+                    className="px-6 py-2.5 bg-emerald-600 hover:bg-emerald-700 active:scale-95 text-white font-black text-xs rounded-xl transition flex items-center space-x-1.5 shadow"
                   >
                     {isSaving ? <Loader2 className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />}
-                    <span>Lưu vào ngân hàng bài học</span>
+                    <span>Xác nhận &amp; Xuất bản ({parsedQuestions.length} câu)</span>
                   </button>
                 </div>
               </div>
 
-              {/* Preview Cards */}
-              <div className="space-y-4">
-                {parsedQuestions.slice(0, 5).map((q, idx) => (
-                  <div key={idx} className="p-4 bg-slate-50 rounded-2xl border border-slate-200 text-xs space-y-2">
-                    <div className="flex items-center justify-between">
-                      <span className="font-bold text-teal-900 uppercase">Câu {idx + 1} ({q.type})</span>
-                      <span className="text-[10px] bg-slate-200 px-2 py-0.5 rounded-full font-bold">{q.difficulty}</span>
-                    </div>
-                    <div className="text-slate-800">
-                      <MathContent content={q.stem} />
-                    </div>
+              {/* KPI Metrics Dashboard Cards */}
+              <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3">
+                <div className="p-3 bg-teal-50/70 border border-teal-200 rounded-2xl text-center space-y-0.5">
+                  <div className="text-[10px] uppercase font-bold text-teal-800">Tổng câu hỏi</div>
+                  <div className="text-xl font-black text-teal-950">{parseReport.totalDetectedQuestions}</div>
+                </div>
+
+                <div className="p-3 bg-blue-50/70 border border-blue-200 rounded-2xl text-center space-y-0.5">
+                  <div className="text-[10px] uppercase font-bold text-blue-800">Công thức OMML</div>
+                  <div className="text-xl font-black text-blue-950">{parseReport.ommlCount}</div>
+                </div>
+
+                <div className="p-3 bg-purple-50/70 border border-purple-200 rounded-2xl text-center space-y-0.5">
+                  <div className="text-[10px] uppercase font-bold text-purple-800">MathType / OLE</div>
+                  <div className="text-xl font-black text-purple-950">{parseReport.mathTypeCount}</div>
+                </div>
+
+                <div className="p-3 bg-amber-50/70 border border-amber-200 rounded-2xl text-center space-y-0.5">
+                  <div className="text-[10px] uppercase font-bold text-amber-800">Hình ảnh Drawing/VML</div>
+                  <div className="text-xl font-black text-amber-950">{parseReport.imageCount}</div>
+                </div>
+
+                <div className="p-3 bg-rose-50/70 border border-rose-200 rounded-2xl text-center space-y-0.5">
+                  <div className="text-[10px] uppercase font-bold text-rose-800">Bảng / Biến thiên</div>
+                  <div className="text-xl font-black text-rose-950">{parseReport.tableCount}</div>
+                </div>
+
+                <div className="p-3 bg-emerald-50/70 border border-emerald-200 rounded-2xl text-center space-y-0.5">
+                  <div className="text-[10px] uppercase font-bold text-emerald-800">Phân loại 4 dạng</div>
+                  <div className="text-[11px] font-bold text-emerald-950 leading-tight">
+                    {parseReport.mcqCount} TN • {parseReport.tfCount} Đ/S<br />
+                    {parseReport.saCount} TLN • {parseReport.essayCount} TL
                   </div>
-                ))}
+                </div>
+              </div>
+
+              {/* Warning Notice if any */}
+              {parseReport.warnings.length > 0 && (
+                <div className="p-4 bg-amber-50 border border-amber-200 rounded-2xl text-xs text-amber-900 space-y-1">
+                  <div className="font-bold flex items-center gap-1">
+                    <AlertTriangle className="w-4 h-4 text-amber-600" />
+                    <span>Cảnh báo khi phân tích file:</span>
+                  </div>
+                  <ul className="list-disc list-inside space-y-0.5 text-[11px]">
+                    {parseReport.warnings.map((w, idx) => (
+                      <li key={idx}>{w.message}</li>
+                    ))}
+                  </ul>
+                </div>
+              )}
+
+              {/* Question Preview List (Rendered via MathJax / MathContent) */}
+              <div className="space-y-4 pt-2">
+                <div className="text-xs font-bold text-slate-800 uppercase tracking-wider flex items-center justify-between">
+                  <span>Chi tiết câu hỏi sau khi bóc tách (Bảo toàn chữ, công thức, ảnh, bảng):</span>
+                  <span className="text-teal-700 font-mono">Hiển thị {parsedQuestions.length} câu</span>
+                </div>
+
+                <div className="space-y-4">
+                  {parsedQuestions.map((q, idx) => (
+                    <div
+                      key={q.id || idx}
+                      className="p-5 bg-slate-50/80 hover:bg-slate-50 rounded-2xl border border-slate-200 text-xs space-y-3 transition-all"
+                    >
+                      {/* Card Top Row */}
+                      <div className="flex items-center justify-between border-b border-slate-200/60 pb-2">
+                        <div className="flex items-center space-x-2">
+                          <span className="font-black text-xs text-teal-900 bg-teal-100 px-2.5 py-0.5 rounded-lg border border-teal-200">
+                            CÂU {idx + 1}
+                          </span>
+                          <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-slate-200 text-slate-700">
+                            {q.type === 'mcq' ? 'Trắc nghiệm 4 lựa chọn' : q.type === 'true_false' ? 'Đúng / Sai 4 ý' : q.type === 'short_answer' ? 'Trả lời ngắn' : 'Tự luận'}
+                          </span>
+                          <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-teal-50 text-teal-800 border border-teal-200">
+                            {q.difficulty}
+                          </span>
+                        </div>
+
+                        <div className="flex items-center space-x-2 text-[11px]">
+                          <span className="text-slate-500 font-mono">{q.points}đ</span>
+                          <button
+                            onClick={() => setActiveTab('editor')}
+                            className="p-1 text-slate-500 hover:text-teal-700 hover:bg-teal-50 rounded transition"
+                            title="Sửa câu này trong Studio"
+                          >
+                            <Edit3 className="w-3.5 h-3.5" />
+                          </button>
+                        </div>
+                      </div>
+
+                      {/* Question Stem (with Math & Sign Tables) */}
+                      <div className="text-slate-900 text-sm leading-relaxed">
+                        <MathContent content={q.stem} />
+                      </div>
+
+                      {/* Attached Media Images (DrawingML/VML/Shapes) */}
+                      {q.media && q.media.length > 0 && (
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 my-2">
+                          {q.media.map((m, mi) => (
+                            <div key={mi} className="p-2 bg-white rounded-xl border border-slate-200 flex flex-col items-center">
+                              <img src={m.url} alt={`Hình câu ${idx + 1}`} className="max-h-48 object-contain rounded-lg" />
+                              <span className="text-[10px] text-slate-400 mt-1 italic">Hình ảnh trích xuất từ Word (rId/DrawingML)</span>
+                            </div>
+                          ))}
+                        </div>
+                      )}
+
+                      {/* Options (For MCQ) */}
+                      {q.type === 'mcq' && q.options && (
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5 pt-1">
+                          {q.options.map((opt) => (
+                            <div
+                              key={opt.id}
+                              className={`p-2.5 rounded-xl border text-xs flex items-start space-x-2 ${
+                                q.correctAnswer === opt.id
+                                  ? 'bg-emerald-50 border-emerald-300 text-emerald-950 font-semibold'
+                                  : 'bg-white border-slate-200 text-slate-800'
+                              }`}
+                            >
+                              <span className="w-5 h-5 rounded-md bg-slate-100 flex items-center justify-center font-bold flex-shrink-0 mt-0.5">
+                                {opt.id}
+                              </span>
+                              <div className="flex-1 pt-0.5">
+                                <MathContent content={opt.text} inline />
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      )}
+
+                      {/* Statements (For True/False) */}
+                      {q.type === 'true_false' && q.statements && (
+                        <div className="divide-y divide-slate-100 border border-slate-200 rounded-xl overflow-hidden bg-white">
+                          {q.statements.map((st) => (
+                            <div key={st.id} className="p-3 flex items-center justify-between gap-3 text-xs">
+                              <div className="flex items-start space-x-2 flex-1">
+                                <span className="font-bold text-teal-800 bg-teal-50 px-2 py-0.5 rounded border border-teal-200">
+                                  {st.id})
+                                </span>
+                                <div className="text-slate-800">
+                                  <MathContent content={st.statement} />
+                                </div>
+                              </div>
+                              <span
+                                className={`px-2.5 py-0.5 rounded-full text-[11px] font-bold ${
+                                  st.isCorrect ? 'bg-emerald-100 text-emerald-800' : 'bg-rose-100 text-rose-800'
+                                }`}
+                              >
+                                {st.isCorrect ? 'Đúng' : 'Sai'}
+                              </span>
+                            </div>
+                          ))}
+                        </div>
+                      )}
+
+                      {/* Detailed Solution if extracted */}
+                      {q.solution && (
+                        <div className="p-3 bg-white rounded-xl border border-slate-200 text-slate-700 leading-relaxed text-[11px]">
+                          <strong className="text-teal-900 block mb-0.5">Lời giải:</strong>
+                          <MathContent content={q.solution} />
+                        </div>
+                      )}
+                    </div>
+                  ))}
+                </div>
               </div>
             </div>
           )}

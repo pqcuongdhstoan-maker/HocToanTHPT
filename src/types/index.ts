@@ -242,6 +242,26 @@ export interface StudentLessonProgress {
   prerequisiteMet: boolean;
 }
 
+// Content Block Model for rich question representation
+export type ContentBlock =
+  | { type: 'text'; text: string }
+  | { type: 'inlineMath'; latex: string; originalSource?: string; mathml?: string }
+  | { type: 'blockMath'; latex: string; originalSource?: string; mathml?: string }
+  | { type: 'image'; url: string; width?: number; height?: number; alt?: string; rId?: string }
+  | { type: 'table'; rows: string[][]; latexArray?: string; rawXml?: string }
+  | { type: 'lineBreak' }
+  | { type: 'unsupported'; originalXml?: string; message: string };
+
+export interface MathFormulaDetail {
+  type: 'math';
+  latex: string;
+  mathml?: string;
+  originalOmml?: string;
+  displayMode: 'inline' | 'block';
+  conversionStatus: 'success' | 'warning' | 'failed' | 'fallback-image';
+  previewImageUrl?: string;
+}
+
 // DOCX Parser models
 export interface DocxParseWarning {
   lineOrIndex: number;
@@ -255,6 +275,10 @@ export interface DocxParseReport {
   fileName: string;
   fileSize: number;
   totalDetectedQuestions: number;
+  ommlCount: number;
+  mathTypeCount: number;
+  convertedLatexCount: number;
+  fallbackImageCount: number;
   formulaCount: number;
   imageCount: number;
   tableCount: number;

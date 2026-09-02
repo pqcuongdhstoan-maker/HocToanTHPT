@@ -1,8 +1,90 @@
 import JSZip from 'jszip';
-import { Question, QuestionType, Option, TrueFalseStatement, DocxParseReport, DocxParseWarning } from '../types';
+import {
+  Question,
+  QuestionType,
+  Option,
+  TrueFalseStatement,
+  DocxParseReport,
+  DocxParseWarning,
+  ContentBlock,
+} from '../types';
 
 /**
- * Converts OMML (Office Math Markup Language) XML string to clean LaTeX
+ * Normalizes Unicode mathematical symbols to standard LaTeX macros
+ */
+export function normalizeMathSymbols(raw: string): string {
+  if (!raw) return '';
+  return raw
+    .replace(/≤/g, ' \\le ')
+    .replace(/≥/g, ' \\ge ')
+    .replace(/≠/g, ' \\ne ')
+    .replace(/≈/g, ' \\approx ')
+    .replace(/±/g, ' \\pm ')
+    .replace(/∓/g, ' \\mp ')
+    .replace(/∈/g, ' \\in ')
+    .replace(/∉/g, ' \\notin ')
+    .replace(/⊂/g, ' \\subset ')
+    .replace(/⊃/g, ' \\supset ')
+    .replace(/⊆/g, ' \\subseteq ')
+    .replace(/⊇/g, ' \\supseteq ')
+    .replace(/∪/g, ' \\cup ')
+    .replace(/∩/g, ' \\cap ')
+    .replace(/∅|Ø/g, ' \\varnothing ')
+    .replace(/∞/g, ' \\infty ')
+    .replace(/→/g, ' \\rightarrow ')
+    .replace(/←/g, ' \\leftarrow ')
+    .replace(/↔/g, ' \\leftrightarrow ')
+    .replace(/⇒/g, ' \\implies ')
+    .replace(/⇔/g, ' \\iff ')
+    .replace(/∀/g, ' \\forall ')
+    .replace(/∃/g, ' \\exists ')
+    .replace(/⊥/g, ' \\perp ')
+    .replace(/∥/g, ' \\parallel ')
+    .replace(/∠/g, ' \\angle ')
+    .replace(/∇/g, ' \\nabla ')
+    .replace(/∂/g, ' \\partial ')
+    .replace(/·|∙/g, ' \\cdot ')
+    .replace(/×/g, ' \\times ')
+    .replace(/÷/g, ' \\div ')
+    .replace(/°/g, '^{\\circ}')
+    .replace(/α/g, '\\alpha ')
+    .replace(/β/g, '\\beta ')
+    .replace(/γ/g, '\\gamma ')
+    .replace(/Δ/g, '\\Delta ')
+    .replace(/δ/g, '\\delta ')
+    .replace(/ε|ϵ/g, '\\epsilon ')
+    .replace(/ζ/g, '\\zeta ')
+    .replace(/η/g, '\\eta ')
+    .replace(/θ/g, '\\theta ')
+    .replace(/ϑ/g, '\\vartheta ')
+    .replace(/ι/g, '\\iota ')
+    .replace(/κ/g, '\\kappa ')
+    .replace(/λ/g, '\\lambda ')
+    .replace(/μ/g, '\\mu ')
+    .replace(/ν/g, '\\nu ')
+    .replace(/ξ/g, '\\xi ')
+    .replace(/π/g, '\\pi ')
+    .replace(/ρ/g, '\\rho ')
+    .replace(/σ/g, '\\sigma ')
+    .replace(/Σ/g, '\\Sigma ')
+    .replace(/τ/g, '\\tau ')
+    .replace(/υ/g, '\\upsilon ')
+    .replace(/φ|ϕ/g, '\\varphi ')
+    .replace(/Φ/g, '\\Phi ')
+    .replace(/χ/g, '\\chi ')
+    .replace(/ψ/g, '\\psi ')
+    .replace(/Ψ/g, '\\Psi ')
+    .replace(/ω/g, '\\omega ')
+    .replace(/Ω/g, '\\Omega ')
+    .replace(/ℝ/g, '\\mathbb{R}')
+    .replace(/ℤ/g, '\\mathbb{Z}')
+    .replace(/ℕ/g, '\\mathbb{N}')
+    .replace(/ℚ/g, '\\mathbb{Q}')
+    .replace(/ℂ/g, '\\mathbb{C}');
+}
+
+/**
+ * Converts OMML (Office Math Markup Language) XML Node to standard LaTeX string
  */
 export function convertOmmlToLatex(ommlNode: Element): string {
   if (!ommlNode) return '';
@@ -15,76 +97,96 @@ export function convertOmmlToLatex(ommlNode: Element): string {
     if (node.nodeType !== Node.ELEMENT_NODE) return '';
 
     const el = node as Element;
-    const tagName = el.localName || el.tagName.replace(/^m:/, '');
+    const tagName = el.localName || el.tagName.replace(/^[a-zA-Z0-9]+:/, '');
 
     switch (tagName) {
       case 'oMathPara':
       case 'oMath': {
-        const children = Array.from(el.childNodes).map(parseNode).join('');
-        return children;
+        return Array.from(el.childNodes).map(parseNode).join('');
       }
       case 't': {
-        // Text inside math run
         const text = el.textContent || '';
         return normalizeMathSymbols(text);
       }
       case 'r': {
-        // Math run
         return Array.from(el.childNodes).map(parseNode).join('');
       }
       case 'f': {
-        // Fraction: <m:fPr>, <m:num>, <m:den>
-        const num = el.getElementsByTagNameNS('*', 'num')[0] || el.querySelector('num, [nodeName="m:num"]');
-        const den = el.getElementsByTagNameNS('*', 'den')[0] || el.querySelector('den, [nodeName="m:den"]');
-        const numLatex = num ? Array.from(num.childNodes).map(parseNode).join('') : '';
-        const denLatex = den ? Array.from(den.childNodes).map(parseNode).join('') : '';
-        return `\\frac{${numLatex.trim()}}{${denLatex.trim()}}`;
+        // Fraction: <m:num>, <m:den>
+        const num = el.getElementsByTagNameNS('*', 'num')[0] || el.querySelector('num');
+        const den = el.getElementsByTagNameNS('*', 'den')[0] || el.querySelector('den');
+        const numLatex = num ? Array.from(num.childNodes).map(parseNode).join('').trim() : '';
+        const denLatex = den ? Array.from(den.childNodes).map(parseNode).join('').trim() : '';
+        return `\\frac{${numLatex}}{${denLatex}}`;
       }
       case 'rad': {
-        // Radical (sqrt / nth root): <m:radPr>, <m:deg>, <m:e>
-        const deg = el.getElementsByTagNameNS('*', 'deg')[0] || el.querySelector('deg, [nodeName="m:deg"]');
-        const e = el.getElementsByTagNameNS('*', 'e')[0] || el.querySelector('e, [nodeName="m:e"]');
-        const eLatex = e ? Array.from(e.childNodes).map(parseNode).join('') : '';
+        // Radical (sqrt / nth root): <m:deg>, <m:e>
+        const deg = el.getElementsByTagNameNS('*', 'deg')[0] || el.querySelector('deg');
+        const e = el.getElementsByTagNameNS('*', 'e')[0] || el.querySelector('e');
+        const eLatex = e ? Array.from(e.childNodes).map(parseNode).join('').trim() : '';
         const degLatex = deg ? Array.from(deg.childNodes).map(parseNode).join('').trim() : '';
         if (degLatex && degLatex.length > 0) {
-          return `\\sqrt[${degLatex}]{${eLatex.trim()}}`;
+          return `\\sqrt[${degLatex}]{${eLatex}}`;
         }
-        return `\\sqrt{${eLatex.trim()}}`;
+        return `\\sqrt{${eLatex}}`;
       }
       case 'sSub': {
         // Subscript: <m:e>, <m:sub>
         const e = el.getElementsByTagNameNS('*', 'e')[0] || el.querySelector('e');
         const sub = el.getElementsByTagNameNS('*', 'sub')[0] || el.querySelector('sub');
-        const eLatex = e ? Array.from(e.childNodes).map(parseNode).join('') : '';
-        const subLatex = sub ? Array.from(sub.childNodes).map(parseNode).join('') : '';
-        return `${eLatex}_{${subLatex.trim()}}`;
+        const eLatex = e ? Array.from(e.childNodes).map(parseNode).join('').trim() : '';
+        const subLatex = sub ? Array.from(sub.childNodes).map(parseNode).join('').trim() : '';
+        return `${eLatex}_{${subLatex}}`;
       }
       case 'sSup': {
         // Superscript: <m:e>, <m:sup>
         const e = el.getElementsByTagNameNS('*', 'e')[0] || el.querySelector('e');
         const sup = el.getElementsByTagNameNS('*', 'sup')[0] || el.querySelector('sup');
-        const eLatex = e ? Array.from(e.childNodes).map(parseNode).join('') : '';
-        const supLatex = sup ? Array.from(sup.childNodes).map(parseNode).join('') : '';
-        return `${eLatex}^{${supLatex.trim()}}`;
+        const eLatex = e ? Array.from(e.childNodes).map(parseNode).join('').trim() : '';
+        const supLatex = sup ? Array.from(sup.childNodes).map(parseNode).join('').trim() : '';
+        return `${eLatex}^{${supLatex}}`;
       }
       case 'sSubSup': {
         // Sub-Superscript: <m:e>, <m:sub>, <m:sup>
         const e = el.getElementsByTagNameNS('*', 'e')[0] || el.querySelector('e');
         const sub = el.getElementsByTagNameNS('*', 'sub')[0] || el.querySelector('sub');
         const sup = el.getElementsByTagNameNS('*', 'sup')[0] || el.querySelector('sup');
-        const eLatex = e ? Array.from(e.childNodes).map(parseNode).join('') : '';
-        const subLatex = sub ? Array.from(sub.childNodes).map(parseNode).join('') : '';
-        const supLatex = sup ? Array.from(sup.childNodes).map(parseNode).join('') : '';
-        return `${eLatex}_{${subLatex.trim()}}^{${supLatex.trim()}}`;
+        const eLatex = e ? Array.from(e.childNodes).map(parseNode).join('').trim() : '';
+        const subLatex = sub ? Array.from(sub.childNodes).map(parseNode).join('').trim() : '';
+        const supLatex = sup ? Array.from(sup.childNodes).map(parseNode).join('').trim() : '';
+        return `${eLatex}_{${subLatex}}^{${supLatex}}`;
+      }
+      case 'sPre': {
+        // Pre-sub/superscript
+        const e = el.getElementsByTagNameNS('*', 'e')[0] || el.querySelector('e');
+        const sub = el.getElementsByTagNameNS('*', 'sub')[0] || el.querySelector('sub');
+        const sup = el.getElementsByTagNameNS('*', 'sup')[0] || el.querySelector('sup');
+        const eLatex = e ? Array.from(e.childNodes).map(parseNode).join('').trim() : '';
+        const subLatex = sub ? Array.from(sub.childNodes).map(parseNode).join('').trim() : '';
+        const supLatex = sup ? Array.from(sup.childNodes).map(parseNode).join('').trim() : '';
+        return `{}^{${supLatex}}_{${subLatex}}${eLatex}`;
       }
       case 'd': {
-        // Delimiters (brackets / parentheses): <m:e>
-        const e = el.getElementsByTagNameNS('*', 'e')[0] || el.querySelector('e');
-        const content = e ? Array.from(e.childNodes).map(parseNode).join('') : '';
-        return `\\left(${content.trim()}\\right)`;
+        // Delimiters (brackets, parentheses, absolute values): <m:dPr>, <m:e>
+        const dPr = el.getElementsByTagNameNS('*', 'dPr')[0] || el.querySelector('dPr');
+        const begChr = dPr?.getElementsByTagNameNS('*', 'begChr')[0]?.getAttribute('m:val') || '(';
+        const endChr = dPr?.getElementsByTagNameNS('*', 'endChr')[0]?.getAttribute('m:val') || ')';
+        const sepChr = dPr?.getElementsByTagNameNS('*', 'sepChr')[0]?.getAttribute('m:val') || ';';
+
+        const eElements = el.getElementsByTagNameNS('*', 'e');
+        const eList = Array.from(eElements).map((eNode) => Array.from(eNode.childNodes).map(parseNode).join('').trim());
+
+        const joined = eList.join(sepChr ? ` ${sepChr} ` : ' ; ');
+
+        if (begChr === '|' && endChr === '|') return `|${joined}|`;
+        if (begChr === '{' || endChr === '}') return `\\left\\{${joined}\\right\\}`;
+        if (begChr === '[' || endChr === ']') return `\\left[${joined}\\right]`;
+        if (begChr === '(' && endChr === ')') return `\\left(${joined}\\right)`;
+
+        return `\\left${begChr || '.'} ${joined} \\right${endChr || '.'}`;
       }
       case 'nary': {
-        // Integrals, Sums, Products
+        // N-ary operators (Integrals, Sums, Products)
         const naryPr = el.getElementsByTagNameNS('*', 'naryPr')[0] || el.querySelector('naryPr');
         const chr = naryPr?.getElementsByTagNameNS('*', 'chr')[0]?.getAttribute('m:val') || '∫';
         const sub = el.getElementsByTagNameNS('*', 'sub')[0] || el.querySelector('sub');
@@ -92,12 +194,12 @@ export function convertOmmlToLatex(ommlNode: Element): string {
         const e = el.getElementsByTagNameNS('*', 'e')[0] || el.querySelector('e');
 
         let symbol = '\\int';
-        if (chr === '∑' || chr === 'sum') symbol = '\\sum';
-        if (chr === '∏' || chr === 'prod') symbol = '\\prod';
+        if (chr === '∑' || chr.toLowerCase() === 'sum') symbol = '\\sum';
+        if (chr === '∏' || chr.toLowerCase() === 'prod') symbol = '\\prod';
 
         const subLatex = sub ? Array.from(sub.childNodes).map(parseNode).join('').trim() : '';
         const supLatex = sup ? Array.from(sup.childNodes).map(parseNode).join('').trim() : '';
-        const eLatex = e ? Array.from(e.childNodes).map(parseNode).join('') : '';
+        const eLatex = e ? Array.from(e.childNodes).map(parseNode).join('').trim() : '';
 
         let limitStr = '';
         if (subLatex) limitStr += `_{${subLatex}}`;
@@ -105,17 +207,66 @@ export function convertOmmlToLatex(ommlNode: Element): string {
 
         return `${symbol}${limitStr} ${eLatex}`;
       }
+      case 'm': {
+        // Matrix: <m:mr> rows, <m:e> elements
+        const rows = el.getElementsByTagNameNS('*', 'mr');
+        const rowStrings: string[] = [];
+        for (let r = 0; r < rows.length; r++) {
+          const cells = rows[r].getElementsByTagNameNS('*', 'e');
+          const cellStrings = Array.from(cells).map((c) => Array.from(c.childNodes).map(parseNode).join('').trim());
+          rowStrings.push(cellStrings.join(' & '));
+        }
+        return `\\begin{pmatrix} ${rowStrings.join(' \\\\ ')} \\end{pmatrix}`;
+      }
+      case 'eqArr': {
+        // Equation array / Systems of equations
+        const eElements = el.getElementsByTagNameNS('*', 'e');
+        const lines = Array.from(eElements).map((eNode) => Array.from(eNode.childNodes).map(parseNode).join('').trim());
+        return `\\begin{cases} ${lines.join(' \\\\ ')} \\end{cases}`;
+      }
+      case 'func': {
+        // Functions: <m:fName>, <m:e>
+        const fName = el.getElementsByTagNameNS('*', 'fName')[0] || el.querySelector('fName');
+        const e = el.getElementsByTagNameNS('*', 'e')[0] || el.querySelector('e');
+        const fNameLatex = fName ? Array.from(fName.childNodes).map(parseNode).join('').trim() : '';
+        const eLatex = e ? Array.from(e.childNodes).map(parseNode).join('').trim() : '';
+        return `${fNameLatex}(${eLatex})`;
+      }
+      case 'limLow':
+      case 'limUpp': {
+        const fName = el.getElementsByTagNameNS('*', 'fName')[0] || el.querySelector('fName');
+        const lim = el.getElementsByTagNameNS('*', 'lim')[0] || el.querySelector('lim');
+        const e = el.getElementsByTagNameNS('*', 'e')[0] || el.querySelector('e');
+        const fNameLatex = fName ? Array.from(fName.childNodes).map(parseNode).join('').trim() : '\\lim';
+        const limLatex = lim ? Array.from(lim.childNodes).map(parseNode).join('').trim() : '';
+        const eLatex = e ? Array.from(e.childNodes).map(parseNode).join('').trim() : '';
+        return `${fNameLatex}_{${limLatex}} ${eLatex}`;
+      }
       case 'acc': {
-        // Accent: vector, bar, hat
+        // Accent: Vector, Overbar, Hat
         const accPr = el.getElementsByTagNameNS('*', 'accPr')[0] || el.querySelector('accPr');
         const chr = accPr?.getElementsByTagNameNS('*', 'chr')[0]?.getAttribute('m:val') || '→';
         const e = el.getElementsByTagNameNS('*', 'e')[0] || el.querySelector('e');
         const eLatex = e ? Array.from(e.childNodes).map(parseNode).join('').trim() : '';
 
         if (chr === '→' || chr === '⃗') return `\\vec{${eLatex}}`;
-        if (chr === '¯' || chr === '–') return `\\overline{${eLatex}}`;
+        if (chr === '¯' || chr === '–' || chr === '-') return `\\overline{${eLatex}}`;
         if (chr === '^' || chr === '̂') return `\\hat{${eLatex}}`;
+        if (chr === '~' || chr === '̃') return `\\tilde{${eLatex}}`;
         return `\\vec{${eLatex}}`;
+      }
+      case 'groupChr': {
+        // Overbrace / Underbrace
+        const groupChrPr = el.getElementsByTagNameNS('*', 'groupChrPr')[0] || el.querySelector('groupChrPr');
+        const pos = groupChrPr?.getElementsByTagNameNS('*', 'pos')[0]?.getAttribute('m:val') || 'bot';
+        const e = el.getElementsByTagNameNS('*', 'e')[0] || el.querySelector('e');
+        const eLatex = e ? Array.from(e.childNodes).map(parseNode).join('').trim() : '';
+        return pos === 'top' ? `\\overbrace{${eLatex}}` : `\\underbrace{${eLatex}}`;
+      }
+      case 'bar': {
+        const e = el.getElementsByTagNameNS('*', 'e')[0] || el.querySelector('e');
+        const eLatex = e ? Array.from(e.childNodes).map(parseNode).join('').trim() : '';
+        return `\\overline{${eLatex}}`;
       }
       default: {
         return Array.from(el.childNodes).map(parseNode).join('');
@@ -127,45 +278,74 @@ export function convertOmmlToLatex(ommlNode: Element): string {
 }
 
 /**
- * Normalizes Unicode mathematical symbols to standard LaTeX macros
+ * Converts Word Table (<w:tbl>) into clean LaTeX Array for sign/variation tables,
+ * or structured table matrix.
  */
-function normalizeMathSymbols(raw: string): string {
-  return raw
-    .replace(/≤/g, ' \\le ')
-    .replace(/≥/g, ' \\ge ')
-    .replace(/≠/g, ' \\ne ')
-    .replace(/±/g, ' \\pm ')
-    .replace(/∈/g, ' \\in ')
-    .replace(/∉/g, ' \\notin ')
-    .replace(/⊂/g, ' \\subset ')
-    .replace(/∪/g, ' \\cup ')
-    .replace(/∩/g, ' \\cap ')
-    .replace(/∅/g, ' \\emptyset ')
-    .replace(/∞/g, ' \\infty ')
-    .replace(/→/g, ' \\to ')
-    .replace(/⇒/g, ' \\implies ')
-    .replace(/⇔/g, ' \\iff ')
-    .replace(/α/g, '\\alpha ')
-    .replace(/β/g, '\\beta ')
-    .replace(/γ/g, '\\gamma ')
-    .replace(/Δ/g, '\\Delta ')
-    .replace(/δ/g, '\\delta ')
-    .replace(/π/g, '\\pi ')
-    .replace(/θ/g, '\\theta ')
-    .replace(/λ/g, '\\lambda ')
-    .replace(/μ/g, '\\mu ')
-    .replace(/σ/g, '\\sigma ')
-    .replace(/φ/g, '\\varphi ')
-    .replace(/ω/g, '\\omega ')
-    .replace(/ℝ/g, '\\mathbb{R}')
-    .replace(/ℤ/g, '\\mathbb{Z}')
-    .replace(/ℕ/g, '\\mathbb{N}')
-    .replace(/ℚ/g, '\\mathbb{Q}')
-    .replace(/·/g, ' \\cdot ');
+export function convertWordTableToLatex(tableNode: Element): { latexArray: string; rows: string[][] } {
+  const rows = tableNode.getElementsByTagNameNS('*', 'tr');
+  const tableMatrix: string[][] = [];
+
+  for (let r = 0; r < rows.length; r++) {
+    const rowEl = rows[r];
+    const cells = rowEl.getElementsByTagNameNS('*', 'tc');
+    const rowCells: string[] = [];
+
+    for (let c = 0; c < cells.length; c++) {
+      const cellEl = cells[c];
+      let cellText = '';
+
+      // Extract paragraphs and math inside cell
+      const pElements = cellEl.getElementsByTagNameNS('*', 'p');
+      const pTexts: string[] = [];
+
+      for (let p = 0; p < pElements.length; p++) {
+        const pEl = pElements[p];
+        let line = '';
+
+        for (const child of Array.from(pEl.childNodes)) {
+          const cEl = child as Element;
+          const cTag = cEl.localName || cEl.tagName.replace(/^[a-zA-Z0-9]+:/, '');
+
+          if (cTag === 'r') {
+            const t = cEl.getElementsByTagNameNS('*', 't')[0]?.textContent || '';
+            line += normalizeMathSymbols(t);
+          } else if (cTag === 'oMath' || cTag === 'oMathPara') {
+            const math = convertOmmlToLatex(cEl);
+            if (math) line += ` ${math} `;
+          }
+        }
+        if (line.trim()) pTexts.push(line.trim());
+      }
+
+      cellText = pTexts.join(' ').trim();
+      rowCells.push(cellText);
+    }
+
+    if (rowCells.length > 0) {
+      tableMatrix.push(rowCells);
+    }
+  }
+
+  if (tableMatrix.length === 0) return { latexArray: '', rows: [] };
+
+  const colCount = Math.max(...tableMatrix.map((r) => r.length));
+  // Alignment: first column 'c|' then 'c' for others
+  const colAlign = colCount > 1 ? `c|${'c'.repeat(colCount - 1)}` : 'c';
+
+  const rowLatexStrings = tableMatrix.map((row) => {
+    // Fill trailing empty cells if any
+    const padded = [...row];
+    while (padded.length < colCount) padded.push('');
+    return padded.join(' & ');
+  });
+
+  const latexArray = `$$\\begin{array}{${colAlign}}\n${rowLatexStrings.join(' \\\\\n\\hline\n')}\n\\end{array}$$`;
+  return { latexArray, rows: tableMatrix };
 }
 
 /**
- * Main DOCX File Parser Pipeline
+ * Deep DOCX / OOXML Master Parser
+ * Preserves exact flow: text -> math -> image -> table -> options -> solution
  */
 export async function parseDocxFile(
   file: File,
@@ -173,39 +353,74 @@ export async function parseDocxFile(
   chapterId: string = 'chap-1'
 ): Promise<{ report: DocxParseReport; questions: Question[] }> {
   const zip = new JSZip();
-  const zipContents = await zip.loadAsync(file);
+  let zipContents: JSZip;
+
+  try {
+    zipContents = await zip.loadAsync(file);
+  } catch (err: any) {
+    throw new Error(`Không thể giải nén file DOCX: ${err.message || 'File có thể không đúng định dạng .docx'}`);
+  }
 
   const warnings: DocxParseWarning[] = [];
   const unparsedParagraphs: string[] = [];
 
-  // 1. Read document relationships for media
-  const relsXmlStr = await zipContents.file('word/_rels/document.xml.rels')?.async('text') || '';
+  let ommlCount = 0;
+  let mathTypeCount = 0;
+  let fallbackImageCount = 0;
+  let tableCount = 0;
+
+  // 1. Read document relationships for media (word/_rels/document.xml.rels)
+  const relsXmlStr = (await zipContents.file('word/_rels/document.xml.rels')?.async('text')) || '';
   const mediaMap: Record<string, string> = {};
 
   if (relsXmlStr) {
-    const parser = new DOMParser();
-    const relsDoc = parser.parseFromString(relsXmlStr, 'application/xml');
-    const rels = relsDoc.getElementsByTagName('Relationship');
-    for (let i = 0; i < rels.length; i++) {
-      const id = rels[i].getAttribute('Id');
-      const target = rels[i].getAttribute('Target');
-      const type = rels[i].getAttribute('Type') || '';
-      if (id && target && type.includes('image')) {
-        const mediaPath = target.startsWith('media/') ? `word/${target}` : `word/${target.replace(/^\//, '')}`;
-        const imageFile = zipContents.file(mediaPath);
-        if (imageFile) {
-          const mimeType = mediaPath.endsWith('.png') ? 'image/png' : mediaPath.endsWith('.jpg') || mediaPath.endsWith('.jpeg') ? 'image/jpeg' : 'image/png';
-          const base64 = await imageFile.async('base64');
-          mediaMap[id] = `data:${mimeType};base64,${base64}`;
+    try {
+      const parser = new DOMParser();
+      const relsDoc = parser.parseFromString(relsXmlStr, 'application/xml');
+      const rels = relsDoc.getElementsByTagName('Relationship');
+
+      for (let i = 0; i < rels.length; i++) {
+        const id = rels[i].getAttribute('Id');
+        const target = rels[i].getAttribute('Target') || '';
+        const type = rels[i].getAttribute('Type') || '';
+
+        if (id && target) {
+          // Normalize media path inside zip
+          const cleanTarget = target.replace(/^\//, '');
+          const mediaPath = cleanTarget.startsWith('word/') ? cleanTarget : `word/${cleanTarget}`;
+          const mediaFile = zipContents.file(mediaPath);
+
+          if (mediaFile) {
+            const lowerPath = mediaPath.toLowerCase();
+            let mimeType = 'image/png';
+            if (lowerPath.endsWith('.jpg') || lowerPath.endsWith('.jpeg')) mimeType = 'image/jpeg';
+            else if (lowerPath.endsWith('.svg')) mimeType = 'image/svg+xml';
+            else if (lowerPath.endsWith('.webp')) mimeType = 'image/webp';
+            else if (lowerPath.endsWith('.gif')) mimeType = 'image/gif';
+            else if (lowerPath.endsWith('.emf') || lowerPath.endsWith('.wmf')) {
+              mimeType = 'image/x-wmf';
+              fallbackImageCount++;
+            }
+
+            const base64 = await mediaFile.async('base64');
+            mediaMap[id] = `data:${mimeType};base64,${base64}`;
+          }
         }
       }
+    } catch (relsErr) {
+      warnings.push({
+        lineOrIndex: 0,
+        code: 'RELS_PARSE_WARNING',
+        message: 'Có cảnh báo khi đọc bảng quan hệ hình ảnh tài liệu.',
+        severity: 'low',
+      });
     }
   }
 
   // 2. Read word/document.xml
   const docXmlStr = await zipContents.file('word/document.xml')?.async('text');
   if (!docXmlStr) {
-    throw new Error('Không tìm thấy file word/document.xml trong file DOCX. File có thể bị hỏng.');
+    throw new Error('Không tìm thấy file word/document.xml. File DOCX có thể bị lỗi cấu trúc.');
   }
 
   const parser = new DOMParser();
@@ -213,155 +428,239 @@ export async function parseDocxFile(
   const body = docXml.getElementsByTagNameNS('*', 'body')[0] || docXml.querySelector('body');
 
   if (!body) {
-    throw new Error('Không thể đọc cấu trúc nội dung tài liệu Word.');
+    throw new Error('Không thể đọc thẻ nội dung body trong file Word.');
   }
 
-  let formulaCount = 0;
-  let imageCount = Object.keys(mediaMap).length;
-  let tableCount = body.getElementsByTagNameNS('*', 'tbl').length;
+  // 3. Sequential traversal of body elements (Paragraphs <w:p> and Tables <w:tbl>)
+  const sequentialBlocks: {
+    type: 'paragraph' | 'table';
+    text: string;
+    contentBlocks: ContentBlock[];
+    mediaUrls: string[];
+    hasMath: boolean;
+  }[] = [];
 
-  // Extract all paragraphs with preserved Math / text / images
-  const paragraphs: { text: string; hasMath: boolean; imageRIds: string[] }[] = [];
-  const pElements = Array.from(body.childNodes).filter((n) => n.nodeType === Node.ELEMENT_NODE) as Element[];
+  const bodyChildren = Array.from(body.childNodes).filter((n) => n.nodeType === Node.ELEMENT_NODE) as Element[];
 
-  for (const el of pElements) {
-    const tagName = el.localName || el.tagName.replace(/^w:/, '');
+  for (const el of bodyChildren) {
+    const tagName = el.localName || el.tagName.replace(/^[a-zA-Z0-9]+:/, '');
+
+    // PROCESS PARAGRAPHS (<w:p>)
     if (tagName === 'p') {
       let pText = '';
+      const pBlocks: ContentBlock[] = [];
+      const mediaUrls: string[] = [];
       let hasMath = false;
-      const imageRIds: string[] = [];
 
       for (const child of Array.from(el.childNodes)) {
         const cEl = child as Element;
-        const cTag = cEl.localName || cEl.tagName.replace(/^[wm]:/, '');
+        const cTag = cEl.localName || cEl.tagName.replace(/^[a-zA-Z0-9]+:/, '');
 
         if (cTag === 'r') {
-          // Regular text run or drawing
-          const t = cEl.getElementsByTagNameNS('*', 't')[0]?.textContent || '';
-          pText += t;
+          // Check for regular text
+          const tElements = cEl.getElementsByTagNameNS('*', 't');
+          let rText = '';
+          for (let ti = 0; ti < tElements.length; ti++) {
+            rText += tElements[ti].textContent || '';
+          }
 
-          // Check for blip image relationship
-          const blip = cEl.getElementsByTagNameNS('*', 'blip')[0];
-          const rEmbed = blip?.getAttribute('r:embed') || blip?.getAttribute('embed');
-          if (rEmbed && mediaMap[rEmbed]) {
-            imageRIds.push(rEmbed);
+          if (rText) {
+            const normalized = normalizeMathSymbols(rText);
+            pText += normalized;
+            pBlocks.push({ type: 'text', text: normalized });
+          }
+
+          // Check DrawingML Images (<a:blip r:embed="rId...">)
+          const blips = cEl.getElementsByTagNameNS('*', 'blip');
+          for (let bi = 0; bi < blips.length; bi++) {
+            const rEmbed = blips[bi].getAttribute('r:embed') || blips[bi].getAttribute('embed') || blips[bi].getAttribute('r:id');
+            if (rEmbed && mediaMap[rEmbed]) {
+              const url = mediaMap[rEmbed];
+              mediaUrls.push(url);
+              pBlocks.push({ type: 'image', url, rId: rEmbed });
+            }
+          }
+
+          // Check VML / Shape Images (<v:imagedata r:id="rId...">)
+          const imageDatas = cEl.getElementsByTagNameNS('*', 'imagedata');
+          for (let ii = 0; ii < imageDatas.length; ii++) {
+            const rId = imageDatas[ii].getAttribute('r:id') || imageDatas[ii].getAttribute('id');
+            if (rId && mediaMap[rId]) {
+              const url = mediaMap[rId];
+              mediaUrls.push(url);
+              pBlocks.push({ type: 'image', url, rId });
+            }
           }
         } else if (cTag === 'oMath' || cTag === 'oMathPara') {
-          // OMML math element!
+          // OMML Math Formula
+          ommlCount++;
           hasMath = true;
-          formulaCount++;
-          const mathLatex = convertOmmlToLatex(cEl);
-          if (mathLatex) {
-            pText += `$${mathLatex}$`;
+          const latex = convertOmmlToLatex(cEl);
+          if (latex) {
+            const isBlock = cTag === 'oMathPara';
+            const formatted = isBlock ? `$$\n${latex}\n$$` : `$${latex}$`;
+            pText += ` ${formatted} `;
+            pBlocks.push(
+              isBlock
+                ? { type: 'blockMath', latex }
+                : { type: 'inlineMath', latex }
+            );
+          }
+        } else if (cTag === 'drawing') {
+          // Standalone drawing container
+          const blips = cEl.getElementsByTagNameNS('*', 'blip');
+          for (let bi = 0; bi < blips.length; bi++) {
+            const rEmbed = blips[bi].getAttribute('r:embed') || blips[bi].getAttribute('embed');
+            if (rEmbed && mediaMap[rEmbed]) {
+              const url = mediaMap[rEmbed];
+              mediaUrls.push(url);
+              pBlocks.push({ type: 'image', url, rId: rEmbed });
+            }
+          }
+        } else if (cTag === 'object' || cTag === 'pict') {
+          // MathType / OLE Embedded Object
+          mathTypeCount++;
+          const imageDatas = cEl.getElementsByTagNameNS('*', 'imagedata');
+          for (let ii = 0; ii < imageDatas.length; ii++) {
+            const rId = imageDatas[ii].getAttribute('r:id') || imageDatas[ii].getAttribute('id');
+            if (rId && mediaMap[rId]) {
+              const url = mediaMap[rId];
+              mediaUrls.push(url);
+              pBlocks.push({ type: 'image', url, rId, alt: 'Công thức MathType' });
+            }
           }
         }
       }
 
-      const trimmed = pText.trim();
-      if (trimmed || imageRIds.length > 0) {
-        paragraphs.push({ text: trimmed, hasMath, imageRIds });
-      }
-    }
-  }
-
-  // 3. Segment into Questions based on markers: "Câu 1.", "Câu 1:", "Bài 1."
-  const questionBlocks: { rawText: string; lines: string[]; imageRIds: string[] }[] = [];
-  let currentBlock: { lines: string[]; imageRIds: string[] } | null = null;
-
-  const questionStartRegex = /^(câu|bài|question)\s*(\d+)[\s.:\-–]/i;
-
-  for (let idx = 0; idx < paragraphs.length; idx++) {
-    const { text, imageRIds } = paragraphs[idx];
-    if (questionStartRegex.test(text)) {
-      if (currentBlock && currentBlock.lines.length > 0) {
-        questionBlocks.push({
-          rawText: currentBlock.lines.join('\n'),
-          lines: currentBlock.lines,
-          imageRIds: currentBlock.imageRIds,
+      const trimmedText = pText.trim();
+      if (trimmedText || mediaUrls.length > 0) {
+        sequentialBlocks.push({
+          type: 'paragraph',
+          text: trimmedText,
+          contentBlocks: pBlocks,
+          mediaUrls,
+          hasMath,
         });
       }
-      currentBlock = { lines: [text], imageRIds: [...imageRIds] };
-    } else {
-      if (currentBlock) {
-        currentBlock.lines.push(text);
-        currentBlock.imageRIds.push(...imageRIds);
-      } else {
-        unparsedParagraphs.push(text);
+    }
+
+    // PROCESS TABLES (<w:tbl>)
+    if (tagName === 'tbl') {
+      tableCount++;
+      const { latexArray, rows } = convertWordTableToLatex(el);
+      if (latexArray || rows.length > 0) {
+        sequentialBlocks.push({
+          type: 'table',
+          text: latexArray,
+          contentBlocks: [{ type: 'table', rows, latexArray }],
+          mediaUrls: [],
+          hasMath: true,
+        });
       }
     }
   }
 
-  if (currentBlock && currentBlock.lines.length > 0) {
-    questionBlocks.push({
-      rawText: currentBlock.lines.join('\n'),
-      lines: currentBlock.lines,
-      imageRIds: currentBlock.imageRIds,
-    });
+  // 4. Segment Sequential Blocks into Questions based on markers: "Câu 1.", "Câu 1:", "Bài 1."
+  const questionSegments: {
+    lines: string[];
+    blocks: ContentBlock[];
+    mediaUrls: string[];
+  }[] = [];
+
+  let currentSegment: {
+    lines: string[];
+    blocks: ContentBlock[];
+    mediaUrls: string[];
+  } | null = null;
+
+  const questionHeaderRegex = /^(?:câu|bài|question)\s*(\d+)[\s.:\-–]/i;
+
+  for (const block of sequentialBlocks) {
+    const isNewQuestionStart = questionHeaderRegex.test(block.text);
+
+    if (isNewQuestionStart) {
+      if (currentSegment && currentSegment.lines.length > 0) {
+        questionSegments.push(currentSegment);
+      }
+      currentSegment = {
+        lines: [block.text],
+        blocks: [...block.contentBlocks],
+        mediaUrls: [...block.mediaUrls],
+      };
+    } else {
+      if (currentSegment) {
+        currentSegment.lines.push(block.text);
+        currentSegment.blocks.push(...block.contentBlocks);
+        currentSegment.mediaUrls.push(...block.mediaUrls);
+      } else {
+        unparsedParagraphs.push(block.text);
+      }
+    }
   }
 
-  // If no "Câu X" markers were found, treat each paragraph group as questions or fallback
-  if (questionBlocks.length === 0 && paragraphs.length > 0) {
+  if (currentSegment && currentSegment.lines.length > 0) {
+    questionSegments.push(currentSegment);
+  }
+
+  // Fallback: If no "Câu X" markers were found, split into logical question segments
+  if (questionSegments.length === 0 && sequentialBlocks.length > 0) {
     warnings.push({
       lineOrIndex: 0,
-      code: 'NO_QUESTION_MARKERS',
-      message: 'Không tìm thấy định dạng "Câu 1.", "Câu 2:" chuẩn. Hệ thống tự động phân tách theo đoạn văn.',
+      code: 'NO_QUESTION_MARKERS_AUTO_SEGMENT',
+      message: 'Không tìm thấy tiền tố "Câu 1.", "Câu 2:". Hệ thống tự động gom toàn bộ nội dung.',
       severity: 'medium',
     });
-    questionBlocks.push({
-      rawText: paragraphs.map((p) => p.text).join('\n'),
-      lines: paragraphs.map((p) => p.text),
-      imageRIds: paragraphs.flatMap((p) => p.imageRIds),
+    questionSegments.push({
+      lines: sequentialBlocks.map((b) => b.text),
+      blocks: sequentialBlocks.flatMap((b) => b.contentBlocks),
+      mediaUrls: sequentialBlocks.flatMap((b) => b.mediaUrls),
     });
   }
 
-  // 4. Classify each question into 4 types
+  // 5. Classify & Build Complete Question Objects
   const questions: Question[] = [];
   let mcqCount = 0;
   let tfCount = 0;
   let saCount = 0;
   let essayCount = 0;
 
-  for (let qIdx = 0; qIdx < questionBlocks.length; qIdx++) {
-    const block = questionBlocks[qIdx];
-    const fullText = block.lines.join('\n');
+  for (let qIdx = 0; qIdx < questionSegments.length; qIdx++) {
+    const segment = questionSegments[qIdx];
+    const fullText = segment.lines.join('\n');
     const qOrder = qIdx + 1;
 
-    // Check for True/False indicators (a), b), c), d) or a., b., c., d.)
+    // Check for True/False indicators: a), b), c), d)
     const tfPattern = /(?:^|\n)\s*([abcdABCD])[\s.)\-]|\b([abcdABCD])\)/g;
-    const tfMatches = Array.from(fullText.matchAll(tfPattern)).map((m) => m[1] || m[2]).map((s) => s.toLowerCase());
+    const tfMatches = Array.from(fullText.matchAll(tfPattern))
+      .map((m) => m[1] || m[2])
+      .map((s) => s.toLowerCase());
     const uniqueTf = Array.from(new Set(tfMatches));
 
-    // Check for MCQ options A., B., C., D.
+    // Check for MCQ options: A., B., C., D.
     const mcqPattern = /(?:^|\n|\s{2,})([ABCD])[\s.:\-–]/g;
     const mcqMatches = Array.from(fullText.matchAll(mcqPattern)).map((m) => m[1]);
     const uniqueMcq = Array.from(new Set(mcqMatches));
 
-    // Check for Short Answer keyword
-    const isShortAnswer = /trả lời ngắn|kết quả là|nhập số|giá trị bằng/i.test(fullText);
-
-    // Check for Essay keyword
-    const isEssay = /tự luận|chứng minh rằng|trình bày bài giải|lập bảng biến thiên/i.test(fullText);
-
     let type: QuestionType = 'mcq';
-    let confidenceScore = 0.9;
-    const media = block.imageRIds.map((rId) => ({ type: 'image' as const, url: mediaMap[rId] }));
+    let confidenceScore = 0.95;
 
     let stem = fullText;
     let solution = '';
     let correctAnswer: string | string[] | undefined = undefined;
 
-    // Extract Solution / Answer if present
+    // Extract Solution / Answer block if present
     const solMatch = fullText.match(/(?:Lời giải|Hướng dẫn giải|Giải chi tiết|Đáp án)[\s.:\-–]([\s\S]*)/i);
     if (solMatch) {
       solution = solMatch[1].trim();
       stem = fullText.substring(0, solMatch.index).trim();
     }
 
-    if (uniqueTf.length >= 3 && (uniqueTf.includes('a') && uniqueTf.includes('b') && uniqueTf.includes('c'))) {
-      // Classified as True/False (Đúng / Sai)
+    const media = segment.mediaUrls.map((url) => ({ type: 'image' as const, url }));
+
+    // CLASSIFY TYPE 2: TRUE / FALSE
+    if (uniqueTf.length >= 3 && uniqueTf.includes('a') && uniqueTf.includes('b') && uniqueTf.includes('c')) {
       type = 'true_false';
       tfCount++;
-      confidenceScore = 0.95;
 
       const statements: TrueFalseStatement[] = [
         { id: 'a', statement: 'Mệnh đề a', isCorrect: true },
@@ -370,7 +669,6 @@ export async function parseDocxFile(
         { id: 'd', statement: 'Mệnh đề d', isCorrect: true },
       ];
 
-      // Parse individual sub-statements
       const rawStatements = stem.split(/(?:^|\n)\s*([abcdABCD])[\s.)\-]/);
       if (rawStatements.length > 2) {
         stem = rawStatements[0].trim();
@@ -378,30 +676,30 @@ export async function parseDocxFile(
           const letter = rawStatements[i].toLowerCase();
           const content = rawStatements[i + 1]?.trim() || '';
           const targetSt = statements.find((s) => s.id === letter);
-          if (targetSt) {
+          if (targetSt && content) {
             targetSt.statement = content;
-            targetSt.isCorrect = !/sai|không đúng/i.test(content);
           }
         }
       }
 
       questions.push({
-        id: `q-parsed-${Date.now()}-${qOrder}`,
+        id: `q-docx-${Date.now()}-${qOrder}`,
         lessonId,
         chapterId,
         type: 'true_false',
-        difficulty: 'VD',
+        difficulty: 'TH',
         order: qOrder,
         points: 1.0,
         stem,
-        media: media.length > 0 ? media : undefined,
+        media,
         statements,
-        solution: solution || 'Xem lời giải chi tiết từng ý a, b, c, d.',
-        tags: ['Đúng Sai', 'Imported DOCX'],
+        solution,
+        tags: ['Đúng Sai', 'Nhập từ Word'],
         confidenceScore,
       });
-    } else if (uniqueMcq.length >= 2 || type === 'mcq') {
-      // Classified as MCQ (Trắc nghiệm nhiều lựa chọn)
+    }
+    // CLASSIFY TYPE 1: MCQ (A, B, C, D)
+    else if (uniqueMcq.length >= 2) {
       type = 'mcq';
       mcqCount++;
 
@@ -412,22 +710,22 @@ export async function parseDocxFile(
         { id: 'D', text: 'Phương án D' },
       ];
 
-      // Parse options
-      const optSplit = stem.split(/(?:^|\n|\s{2,})([ABCD])[\s.:\-–]/);
-      if (optSplit.length > 2) {
-        stem = optSplit[0].trim();
-        for (let i = 1; i < optSplit.length; i += 2) {
-          const optLetter = optSplit[i].toUpperCase();
-          const optContent = optSplit[i + 1]?.trim() || '';
+      const rawOptions = stem.split(/(?:^|\n|\s{2,})([ABCD])[\s.:\-–]/);
+      if (rawOptions.length > 2) {
+        stem = rawOptions[0].trim();
+        for (let i = 1; i < rawOptions.length; i += 2) {
+          const optLetter = rawOptions[i].toUpperCase();
+          const optContent = rawOptions[i + 1]?.trim() || '';
           const targetOpt = options.find((o) => o.id === optLetter);
-          if (targetOpt) {
+          if (targetOpt && optContent) {
             targetOpt.text = optContent;
+            targetOpt.latex = optContent;
           }
         }
       }
 
-      // Check for answer hint in solution
-      const ansMatch = solution.match(/(?:Chọn|Đáp án)[\s:]([ABCD])/i);
+      // Check for answer indication (e.g. "Chọn A", "Đáp án: B")
+      const ansMatch = (fullText + ' ' + solution).match(/(?:Chọn|Đáp án|Key)\s*([ABCD])/i);
       if (ansMatch) {
         correctAnswer = ansMatch[1].toUpperCase();
       } else {
@@ -435,26 +733,29 @@ export async function parseDocxFile(
       }
 
       questions.push({
-        id: `q-parsed-${Date.now()}-${qOrder}`,
+        id: `q-docx-${Date.now()}-${qOrder}`,
         lessonId,
         chapterId,
         type: 'mcq',
-        difficulty: 'TH',
+        difficulty: 'NB',
         order: qOrder,
         points: 0.25,
         stem,
-        media: media.length > 0 ? media : undefined,
+        media,
         options,
         correctAnswer,
-        solution: solution || 'Lời giải chi tiết câu hỏi trắc nghiệm.',
-        tags: ['Trắc nghiệm', 'Imported DOCX'],
+        solution,
+        tags: ['Trắc nghiệm', 'Nhập từ Word'],
         confidenceScore,
       });
-    } else if (isShortAnswer) {
+    }
+    // CLASSIFY TYPE 3: SHORT ANSWER OR ESSAY
+    else if (/trả lời ngắn|kết quả là|nhập số/i.test(fullText)) {
       type = 'short_answer';
       saCount++;
+
       questions.push({
-        id: `q-parsed-${Date.now()}-${qOrder}`,
+        id: `q-docx-${Date.now()}-${qOrder}`,
         lessonId,
         chapterId,
         type: 'short_answer',
@@ -462,36 +763,32 @@ export async function parseDocxFile(
         order: qOrder,
         points: 0.5,
         stem,
-        media: media.length > 0 ? media : undefined,
+        media,
         shortAnswerKey: {
-          acceptedValues: ['0', '1'],
+          acceptedValues: ['0'],
           isNumeric: true,
-          tolerance: 0.01,
         },
-        solution: solution || 'Kết quả câu trả lời ngắn.',
-        tags: ['Trả lời ngắn', 'Imported DOCX'],
+        solution,
+        tags: ['Trả lời ngắn', 'Nhập từ Word'],
         confidenceScore: 0.85,
       });
     } else {
       type = 'essay';
       essayCount++;
+
       questions.push({
-        id: `q-parsed-${Date.now()}-${qOrder}`,
+        id: `q-docx-${Date.now()}-${qOrder}`,
         lessonId,
         chapterId,
         type: 'essay',
-        difficulty: 'VD',
+        difficulty: 'VDC',
         order: qOrder,
-        points: 2.0,
+        points: 1.0,
         stem,
-        media: media.length > 0 ? media : undefined,
-        rubric: [
-          { id: 'r1', criterion: 'Trình bày phương pháp giải', maxPoints: 1.0, description: 'Đúng hướng và biến đổi' },
-          { id: 'r2', criterion: 'Kết quả và kết luận', maxPoints: 1.0, description: 'Tính toán chính xác' },
-        ],
-        solution: solution || 'Hướng dẫn giải chi tiết bài toán tự luận.',
-        tags: ['Tự luận', 'Imported DOCX'],
-        confidenceScore: 0.8,
+        media,
+        solution,
+        tags: ['Tự luận', 'Nhập từ Word'],
+        confidenceScore: 0.85,
       });
     }
   }
@@ -500,8 +797,12 @@ export async function parseDocxFile(
     fileName: file.name,
     fileSize: file.size,
     totalDetectedQuestions: questions.length,
-    formulaCount,
-    imageCount,
+    ommlCount,
+    mathTypeCount,
+    convertedLatexCount: ommlCount,
+    fallbackImageCount,
+    formulaCount: ommlCount + mathTypeCount,
+    imageCount: Object.keys(mediaMap).length,
     tableCount,
     mcqCount,
     tfCount,
@@ -510,7 +811,7 @@ export async function parseDocxFile(
     warnings,
     unparsedParagraphs,
     parsedAt: new Date().toISOString(),
-    version: 1,
+    version: 2,
   };
 
   return { report, questions };
