@@ -522,18 +522,16 @@ export const TwoPaneDocxEditor: React.FC<TwoPaneDocxEditorProps> = ({
                   }`}
                 >
                   {/* Card Top Header: Question Number, Points, Badges, Action Icons */}
-                  <div className="flex items-center justify-between border-b border-slate-100 pb-3">
-                    <div className="flex items-center space-x-2.5">
-                      <span className="w-7 h-7 rounded-xl bg-teal-800 text-white font-black text-xs flex items-center justify-center">
-                        {idx + 1}
-                      </span>
-                      <span className="font-bold text-slate-900 text-xs uppercase">
-                        Câu {idx + 1}
+                  <div className="flex flex-wrap items-center justify-between gap-2 pb-2">
+                    <div className="flex flex-wrap items-center space-x-2">
+                      {/* [Câu X.] Badge */}
+                      <span className="border border-blue-400 text-blue-700 bg-white font-bold px-3 py-1 rounded-lg text-xs shadow-2xs">
+                        Câu {idx + 1}.
                       </span>
 
-                      {/* Points Input */}
-                      <div className="flex items-center space-x-1 bg-slate-50 px-2 py-0.5 rounded-lg border border-slate-200">
-                        <span className="text-[10px] text-slate-500 font-semibold">Điểm:</span>
+                      {/* [Nhập điểm] */}
+                      <div className="flex items-center space-x-1 border border-slate-300 bg-white px-2.5 py-1 rounded-lg text-xs">
+                        <span className="text-slate-600 font-semibold">Nhập điểm:</span>
                         <input
                           type="number"
                           step="0.05"
@@ -541,49 +539,62 @@ export const TwoPaneDocxEditor: React.FC<TwoPaneDocxEditorProps> = ({
                           max="10"
                           value={q.points || 0.25}
                           onChange={(e) => handleUpdatePoints(idx, parseFloat(e.target.value) || 0.25)}
-                          className="w-12 bg-transparent text-xs font-bold text-teal-900 text-center focus:outline-none"
+                          className="w-12 bg-transparent text-xs font-bold text-blue-800 text-center focus:outline-none"
                         />
                       </div>
 
-                      {/* Question Type & Difficulty Badges */}
-                      <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-slate-100 text-slate-700">
-                        {q.type === 'mcq'
-                          ? 'Trắc nghiệm'
-                          : q.type === 'true_false'
-                          ? 'Đúng/Sai'
-                          : q.type === 'short_answer'
-                          ? 'Trả lời ngắn'
-                          : 'Tự luận'}
-                      </span>
-                      <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-teal-50 text-teal-800 border border-teal-200">
-                        {q.difficulty}
-                      </span>
-                    </div>
-
-                    {/* Right Action Icons on Card */}
-                    <div className="flex items-center space-x-1 text-slate-400">
+                      {/* [📎Audio] */}
                       <button
                         type="button"
                         onClick={(e) => {
                           e.stopPropagation();
                           alert(`Đính kèm Audio cho Câu ${idx + 1}`);
                         }}
-                        className="p-1 hover:text-teal-700 hover:bg-teal-50 rounded-lg transition"
-                        title="Đính kèm Audio cho câu này"
+                        className="border border-slate-300 bg-white hover:bg-blue-50 text-blue-600 px-3 py-1 rounded-lg text-xs font-semibold flex items-center space-x-1 transition"
                       >
-                        <Volume2 className="w-4 h-4" />
+                        <Volume2 className="w-3.5 h-3.5 text-blue-600" />
+                        <span>Audio</span>
                       </button>
+
+                      {/* [Trắc nghiệm ▾] Type Selector */}
+                      <select
+                        value={q.type}
+                        onChange={(e) => {
+                          const newType = e.target.value as QuestionType;
+                          const updated = questions.map((item, qIndex) =>
+                            qIndex === idx ? { ...item, type: newType } : item
+                          );
+                          updateQuestionsAndSyncSource(updated);
+                        }}
+                        className="border border-slate-300 bg-white text-slate-600 px-2.5 py-1 rounded-lg text-xs font-semibold focus:outline-none"
+                      >
+                        <option value="mcq">Trắc nghiệm</option>
+                        <option value="true_false">Đúng / Sai</option>
+                        <option value="short_answer">Trả lời ngắn</option>
+                        <option value="essay">Tự luận</option>
+                      </select>
+
+                      {/* [🏷️] Tag Icon */}
+                      <span className="p-1 text-slate-400 hover:text-slate-600 cursor-pointer">
+                        <Sliders className="w-3.5 h-3.5 text-blue-600" />
+                      </span>
+
+                      {/* [🔄 Đổi câu khác] */}
                       <button
                         type="button"
                         onClick={(e) => {
                           e.stopPropagation();
                           handleDuplicateQuestion(idx);
                         }}
-                        className="p-1 hover:text-teal-700 hover:bg-teal-50 rounded-lg transition"
-                        title="Nhân bản câu này"
+                        className="text-blue-600 hover:text-blue-800 text-xs font-semibold flex items-center space-x-1 px-1.5 py-1 transition"
                       >
-                        <Copy className="w-4 h-4" />
+                        <RotateCw className="w-3.5 h-3.5" />
+                        <span>Đổi câu khác</span>
                       </button>
+                    </div>
+
+                    {/* Right Action Icons on Card */}
+                    <div className="flex items-center space-x-1 text-slate-400">
                       <button
                         type="button"
                         onClick={(e) => {
@@ -598,8 +609,8 @@ export const TwoPaneDocxEditor: React.FC<TwoPaneDocxEditorProps> = ({
                     </div>
                   </div>
 
-                  {/* Question Stem (With MathJax & Embedded Media) */}
-                  <div className="text-slate-900 text-sm leading-relaxed font-sans">
+                  {/* Question Stem Box (Bordered rectangular box) */}
+                  <div className="p-4 bg-white rounded-xl border border-slate-300 text-slate-900 text-sm leading-relaxed font-sans shadow-2xs">
                     <MathContent content={q.stem} />
                   </div>
 
@@ -621,9 +632,9 @@ export const TwoPaneDocxEditor: React.FC<TwoPaneDocxEditorProps> = ({
                     </div>
                   )}
 
-                  {/* MCQ Options A, B, C, D (Interactive Selectable Pills) */}
+                  {/* MCQ Options A, B, C, D (Vertical Rows with Letter Box, Formula Box & Checkmark) */}
                   {q.type === 'mcq' && q.options && (
-                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5 pt-1">
+                    <div className="space-y-2.5 pt-1">
                       {q.options.map((opt) => {
                         const isCorrect = q.correctAnswer === opt.id;
                         return (
@@ -633,30 +644,39 @@ export const TwoPaneDocxEditor: React.FC<TwoPaneDocxEditorProps> = ({
                               e.stopPropagation();
                               handleSelectCorrectOption(idx, opt.id);
                             }}
-                            className={`p-3 rounded-2xl border text-xs flex items-start space-x-2.5 cursor-pointer transition-all ${
-                              isCorrect
-                                ? 'bg-teal-50 border-2 border-teal-600 text-teal-950 font-bold ring-2 ring-teal-400/30 shadow-xs'
-                                : 'bg-white hover:bg-slate-50 border-slate-200 text-slate-800'
-                            }`}
+                            className="flex items-center space-x-2.5 cursor-pointer group"
                             title="Bấm để chọn làm đáp án đúng"
                           >
-                            <span
-                              className={`w-6 h-6 rounded-xl flex items-center justify-center font-bold text-xs flex-shrink-0 mt-0.5 ${
+                            {/* Checkmark icon on the left */}
+                            <div className="w-5 flex items-center justify-center">
+                              {isCorrect ? (
+                                <Check className="w-4 h-4 text-blue-600 font-black" strokeWidth={3} />
+                              ) : (
+                                <span className="w-4 h-4" />
+                              )}
+                            </div>
+
+                            {/* Square Letter Badge [ A ] */}
+                            <div
+                              className={`w-8 h-8 rounded-lg flex items-center justify-center font-bold text-xs border transition ${
                                 isCorrect
-                                  ? 'bg-teal-600 text-white'
-                                  : 'bg-slate-100 text-slate-700'
+                                  ? 'border-blue-600 text-blue-800 bg-blue-50/60 shadow-2xs'
+                                  : 'border-slate-400 text-slate-800 bg-white group-hover:border-blue-400'
                               }`}
                             >
                               {opt.id}
-                            </span>
-                            <div className="flex-1 pt-0.5">
+                            </div>
+
+                            {/* Rectangular Formula Box [ (-\infty; 1). ] */}
+                            <div
+                              className={`px-4 py-1.5 rounded-lg border text-sm font-medium transition-all ${
+                                isCorrect
+                                  ? 'border-blue-600 text-blue-900 bg-blue-50/40 ring-1 ring-blue-400/30'
+                                  : 'border-slate-300 text-slate-900 bg-white group-hover:border-slate-400'
+                              }`}
+                            >
                               <MathContent content={opt.text} inline />
                             </div>
-                            {isCorrect && (
-                              <span className="text-[10px] bg-teal-600 text-white font-bold px-1.5 py-0.5 rounded-md self-center">
-                                Đáp án đúng
-                              </span>
-                            )}
                           </div>
                         );
                       })}

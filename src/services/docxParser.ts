@@ -84,6 +84,42 @@ export function normalizeMathSymbols(raw: string): string {
 }
 
 /**
+ * Automatically wraps mathematical notations in $...$ for visual MathJax rendering
+ * when they are extracted from plain text runs (e.g. f(x), \mathbb{R}, AB = 10, \widehat{A} = 45^\circ, \sqrt{2})
+ */
+export function ensureMathDelimiters(text: string): string {
+  if (!text) return '';
+
+  let res = text;
+
+  // Wrap standalone \mathbb{R}, \mathbb{Z} ... if not already inside $
+  res = res.replace(/(?<!\$)\\mathbb\{[A-Z]\}(?!\$)/g, (m) => `$${m}$`);
+
+  // Wrap f(x), f'(x), g(x), y=f(x) if not inside $
+  res = res.replace(/(?<![\$\w\\])\b([fg]\s*\(\s*x\s*\)|[fg]'\s*\(\s*x\s*\)|y\s*=\s*[fg]\s*\(\s*x\s*\))(?!\$)/g, (m) => `$${m}$`);
+
+  // Wrap geometric angle expressions: \widehat{A} = 45^0 or \widehat{A} = 45^\circ or \angle A = ...
+  res = res.replace(/(?<!\$)(\\widehat\{[A-Z]\}\s*=\s*\d+[\^0°^{\\circ}]+|\\hat\{[A-Z]\}\s*=\s*\d+[\^0°^{\\circ}]+)(?!\$)/g, (m) => {
+    const clean = m.replace(/\^0|\^\{\\circ\}|°/g, '^{\\circ}');
+    return `$${clean}$`;
+  });
+
+  // Wrap side lengths: AB = 10, AC = 6, BC = ...
+  res = res.replace(/(?<![\$\w\\])\b([A-Z]{2}\s*=\s*\d+)(?!\$)/g, (m) => `$${m}$`);
+
+  // Wrap triangle names: tam giác ABC -> tam giác $ABC$
+  res = res.replace(/(tam giác\s+)([A-Z]{3})\b(?!\$)/gi, (_, prefix, tri) => `${prefix}$${tri}$`);
+
+  // Wrap square roots like 30\sqrt{2}, 15\sqrt{3}, \sqrt{2} if not inside $
+  res = res.replace(/(?<![\$\\])(\d*\\sqrt\{[^\}]+\}|\d*\\sqrt\s*\d+)(?!\$)/g, (m) => `$${m}$`);
+
+  // Wrap intervals like (-\infty; 1), (-2; 1), (-2; +\infty), (-\infty; -2)
+  res = res.replace(/(?<!\$)\(([+-]?\\infty|-?\d+)\s*;\s*([+-]?\\infty|-?\d+)\)(?!\$)/g, (m) => `$${m}$`);
+
+  return res;
+}
+
+/**
  * Converts OMML (Office Math Markup Language) XML Node to standard LaTeX string
  */
 export function convertOmmlToLatex(ommlNode: Element): string {
@@ -669,15 +705,19 @@ export async function parseDocxFile(
         { id: 'd', statement: 'Mệnh đề d', isCorrect: true },
       ];
 
+      // Apply math delimiter wrapping
+      stem = ensureMathDelimiters(stem);
+      solution = ensureMathDelimiters(solution);
+
       const rawStatements = stem.split(/(?:^|\n)\s*([abcdABCD])[\s.)\-]/);
       if (rawStatements.length > 2) {
-        stem = rawStatements[0].trim();
+        stem = ensureMathDelimiters(rawStatements[0].trim());
         for (let i = 1; i < rawStatements.length; i += 2) {
           const letter = rawStatements[i].toLowerCase();
           const content = rawStatements[i + 1]?.trim() || '';
           const targetSt = statements.find((s) => s.id === letter);
           if (targetSt && content) {
-            targetSt.statement = content;
+            targetSt.statement = ensureMathDelimiters(content);
           }
         }
       }
@@ -712,21 +752,29 @@ export async function parseDocxFile(
 
       const rawOptions = stem.split(/(?:^|\n|\s{2,})([ABCD])[\s.:\-–]/);
       if (rawOptions.length > 2) {
-        stem = rawOptions[0].trim();
+        stem = ensureMathDelimiters(rawOptions[0].trim());
         for (let i = 1; i < rawOptions.length; i += 2) {
           const optLetter = rawOptions[i].toUpperCase();
           const optContent = rawOptions[i + 1]?.trim() || '';
           const targetOpt = options.find((o) => o.id === optLetter);
           if (targetOpt && optContent) {
-            targetOpt.text = optContent;
-            targetOpt.latex = optContent;
+            const mathified = ensureMathDelimiters(optContent);
+            targetOpt.text = mathified;
+            targetOpt.latex = mathified;
           }
         }
+      } else {
+        stem = ensureMathDelimiters(stem);
       }
 
-      // Check for answer indication (e.g. "Chọn A", "Đáp án: B")
+      solution = ensureMathDelimiters(solution);
+
+      // Check for answer indication (e.g. "Chọn A", "Đáp án: B", "*D.")
+      const starMatch = fullText.match(/\*([ABCD])[\s.:\-–]/i);
       const ansMatch = (fullText + ' ' + solution).match(/(?:Chọn|Đáp án|Key)\s*([ABCD])/i);
-      if (ansMatch) {
+      if (starMatch) {
+        correctAnswer = starMatch[1].toUpperCase();
+      } else if (ansMatch) {
         correctAnswer = ansMatch[1].toUpperCase();
       } else {
         correctAnswer = 'A';
@@ -762,13 +810,13 @@ export async function parseDocxFile(
         difficulty: 'VD',
         order: qOrder,
         points: 0.5,
-        stem,
+        stem: ensureMathDelimiters(stem),
         media,
         shortAnswerKey: {
           acceptedValues: ['0'],
           isNumeric: true,
         },
-        solution,
+        solution: ensureMathDelimiters(solution),
         tags: ['Trả lời ngắn', 'Nhập từ Word'],
         confidenceScore: 0.85,
       });
@@ -784,9 +832,9 @@ export async function parseDocxFile(
         difficulty: 'VDC',
         order: qOrder,
         points: 1.0,
-        stem,
+        stem: ensureMathDelimiters(stem),
         media,
-        solution,
+        solution: ensureMathDelimiters(solution),
         tags: ['Tự luận', 'Nhập từ Word'],
         confidenceScore: 0.85,
       });
