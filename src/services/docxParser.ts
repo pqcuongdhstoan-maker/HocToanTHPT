@@ -405,12 +405,37 @@ export async function parseDocxFile(
   let fallbackImageCount = 0;
   let tableCount = 0;
 
-  // 1. Read document relationships for media (word/_rels/document.xml.rels)
-  const relsXmlStr = (await zipContents.file('word/_rels/document.xml.rels')?.async('text')) || '';
+  // 1. Direct scan and extraction of all media files in word/media/*
   const mediaMap: Record<string, string> = {};
 
-  if (relsXmlStr) {
-    try {
+  try {
+    // Scan all files under word/media/
+    const mediaFiles = zipContents.file(/^word\/media\//);
+    for (const mFile of mediaFiles) {
+      const fileName = mFile.name.replace(/^word\/media\//, '');
+      const lowerName = fileName.toLowerCase();
+      let mimeType = 'image/png';
+      if (lowerName.endsWith('.jpg') || lowerName.endsWith('.jpeg')) mimeType = 'image/jpeg';
+      else if (lowerName.endsWith('.svg')) mimeType = 'image/svg+xml';
+      else if (lowerName.endsWith('.webp')) mimeType = 'image/webp';
+      else if (lowerName.endsWith('.gif')) mimeType = 'image/gif';
+      else if (lowerName.endsWith('.emf') || lowerName.endsWith('.wmf')) {
+        mimeType = 'image/x-wmf';
+        fallbackImageCount++;
+      }
+
+      const base64 = await mFile.async('base64');
+      const dataUri = `data:${mimeType};base64,${base64}`;
+
+      // Index by full path and filename
+      mediaMap[mFile.name] = dataUri;
+      mediaMap[fileName] = dataUri;
+      mediaMap[`media/${fileName}`] = dataUri;
+    }
+
+    // Map rIds from word/_rels/document.xml.rels
+    const relsXmlStr = (await zipContents.file('word/_rels/document.xml.rels')?.async('text')) || '';
+    if (relsXmlStr) {
       const parser = new DOMParser();
       const relsDoc = parser.parseFromString(relsXmlStr, 'application/xml');
       const rels = relsDoc.getElementsByTagName('Relationship');
@@ -418,39 +443,25 @@ export async function parseDocxFile(
       for (let i = 0; i < rels.length; i++) {
         const id = rels[i].getAttribute('Id');
         const target = rels[i].getAttribute('Target') || '';
-        const type = rels[i].getAttribute('Type') || '';
 
         if (id && target) {
-          // Normalize media path inside zip
-          const cleanTarget = target.replace(/^\//, '');
-          const mediaPath = cleanTarget.startsWith('word/') ? cleanTarget : `word/${cleanTarget}`;
-          const mediaFile = zipContents.file(mediaPath);
+          const cleanTarget = target.replace(/^\//, '').replace(/^word\//, '');
+          const targetFileName = cleanTarget.replace(/^media\//, '');
 
-          if (mediaFile) {
-            const lowerPath = mediaPath.toLowerCase();
-            let mimeType = 'image/png';
-            if (lowerPath.endsWith('.jpg') || lowerPath.endsWith('.jpeg')) mimeType = 'image/jpeg';
-            else if (lowerPath.endsWith('.svg')) mimeType = 'image/svg+xml';
-            else if (lowerPath.endsWith('.webp')) mimeType = 'image/webp';
-            else if (lowerPath.endsWith('.gif')) mimeType = 'image/gif';
-            else if (lowerPath.endsWith('.emf') || lowerPath.endsWith('.wmf')) {
-              mimeType = 'image/x-wmf';
-              fallbackImageCount++;
-            }
-
-            const base64 = await mediaFile.async('base64');
-            mediaMap[id] = `data:${mimeType};base64,${base64}`;
+          const matchedUri = mediaMap[`word/media/${targetFileName}`] || mediaMap[targetFileName] || mediaMap[cleanTarget];
+          if (matchedUri) {
+            mediaMap[id] = matchedUri;
           }
         }
       }
-    } catch (relsErr) {
-      warnings.push({
-        lineOrIndex: 0,
-        code: 'RELS_PARSE_WARNING',
-        message: 'Có cảnh báo khi đọc bảng quan hệ hình ảnh tài liệu.',
-        severity: 'low',
-      });
     }
+  } catch (mediaErr) {
+    warnings.push({
+      lineOrIndex: 0,
+      code: 'MEDIA_SCAN_WARNING',
+      message: 'Có cảnh báo khi quét tệp hình ảnh tài liệu Word.',
+      severity: 'low',
+    });
   }
 
   // 2. Read word/document.xml
@@ -488,85 +499,85 @@ export async function parseDocxFile(
       const mediaUrls: string[] = [];
       let hasMath = false;
 
-      for (const child of Array.from(el.childNodes)) {
-        const cEl = child as Element;
-        const cTag = cEl.localName || cEl.tagName.replace(/^[a-zA-Z0-9]+:/, '');
+      // Recursive DOM Walker that preserves exact sequential order
+      function walkNode(node: Node) {
+        if (node.nodeType === Node.TEXT_NODE) {
+          return;
+        }
 
-        if (cTag === 'r') {
-          // Check for regular text
-          const tElements = cEl.getElementsByTagNameNS('*', 't');
-          let rText = '';
-          for (let ti = 0; ti < tElements.length; ti++) {
-            rText += tElements[ti].textContent || '';
+        if (node.nodeType !== Node.ELEMENT_NODE) return;
+
+        const el = node as Element;
+        const tag = el.localName || el.tagName.replace(/^[a-zA-Z0-9]+:/, '');
+
+        // 1. Math Element (OMML)
+        if (tag === 'oMath' || tag === 'oMathPara') {
+          ommlCount++;
+          hasMath = true;
+          const latex = convertOmmlToLatex(el);
+          if (latex) {
+            const isBlock = tag === 'oMathPara';
+            const formatted = isBlock ? `$$\n${latex}\n$$` : `$${latex}$`;
+            pText += ` ${formatted} `;
+            pBlocks.push(isBlock ? { type: 'blockMath', latex } : { type: 'inlineMath', latex });
           }
+          return; // Consumed entire math subtree
+        }
 
-          if (rText) {
-            const normalized = normalizeMathSymbols(rText);
+        // 2. Text Run Content (<w:t>)
+        if (tag === 't') {
+          const tVal = el.textContent || '';
+          if (tVal) {
+            const normalized = normalizeMathSymbols(tVal);
             pText += normalized;
             pBlocks.push({ type: 'text', text: normalized });
           }
+          return;
+        }
 
-          // Check DrawingML Images (<a:blip r:embed="rId...">)
-          const blips = cEl.getElementsByTagNameNS('*', 'blip');
-          for (let bi = 0; bi < blips.length; bi++) {
-            const rEmbed = blips[bi].getAttribute('r:embed') || blips[bi].getAttribute('embed') || blips[bi].getAttribute('r:id');
-            if (rEmbed && mediaMap[rEmbed]) {
-              const url = mediaMap[rEmbed];
-              mediaUrls.push(url);
-              pBlocks.push({ type: 'image', url, rId: rEmbed });
-            }
-          }
+        // 3. Line Break (<w:br>)
+        if (tag === 'br') {
+          pText += '\n';
+          pBlocks.push({ type: 'lineBreak' });
+          return;
+        }
 
-          // Check VML / Shape Images (<v:imagedata r:id="rId...">)
-          const imageDatas = cEl.getElementsByTagNameNS('*', 'imagedata');
-          for (let ii = 0; ii < imageDatas.length; ii++) {
-            const rId = imageDatas[ii].getAttribute('r:id') || imageDatas[ii].getAttribute('id');
-            if (rId && mediaMap[rId]) {
-              const url = mediaMap[rId];
-              mediaUrls.push(url);
-              pBlocks.push({ type: 'image', url, rId });
-            }
+        // 4. Tab (<w:tab>)
+        if (tag === 'tab') {
+          pText += '  ';
+          return;
+        }
+
+        // 5. DrawingML Image (<a:blip r:embed="rId...">)
+        if (tag === 'blip') {
+          const rEmbed = el.getAttribute('r:embed') || el.getAttribute('embed') || el.getAttribute('r:id');
+          if (rEmbed && mediaMap[rEmbed]) {
+            const url = mediaMap[rEmbed];
+            mediaUrls.push(url);
+            pBlocks.push({ type: 'image', url, rId: rEmbed });
           }
-        } else if (cTag === 'oMath' || cTag === 'oMathPara') {
-          // OMML Math Formula
-          ommlCount++;
-          hasMath = true;
-          const latex = convertOmmlToLatex(cEl);
-          if (latex) {
-            const isBlock = cTag === 'oMathPara';
-            const formatted = isBlock ? `$$\n${latex}\n$$` : `$${latex}$`;
-            pText += ` ${formatted} `;
-            pBlocks.push(
-              isBlock
-                ? { type: 'blockMath', latex }
-                : { type: 'inlineMath', latex }
-            );
+          return;
+        }
+
+        // 6. VML Image / MathType OLE Preview (<v:imagedata r:id="rId...">)
+        if (tag === 'imagedata') {
+          const rId = el.getAttribute('r:id') || el.getAttribute('id');
+          if (rId && mediaMap[rId]) {
+            mathTypeCount++;
+            const url = mediaMap[rId];
+            mediaUrls.push(url);
+            pBlocks.push({ type: 'image', url, rId, alt: 'Công thức MathType' });
           }
-        } else if (cTag === 'drawing') {
-          // Standalone drawing container
-          const blips = cEl.getElementsByTagNameNS('*', 'blip');
-          for (let bi = 0; bi < blips.length; bi++) {
-            const rEmbed = blips[bi].getAttribute('r:embed') || blips[bi].getAttribute('embed');
-            if (rEmbed && mediaMap[rEmbed]) {
-              const url = mediaMap[rEmbed];
-              mediaUrls.push(url);
-              pBlocks.push({ type: 'image', url, rId: rEmbed });
-            }
-          }
-        } else if (cTag === 'object' || cTag === 'pict') {
-          // MathType / OLE Embedded Object
-          mathTypeCount++;
-          const imageDatas = cEl.getElementsByTagNameNS('*', 'imagedata');
-          for (let ii = 0; ii < imageDatas.length; ii++) {
-            const rId = imageDatas[ii].getAttribute('r:id') || imageDatas[ii].getAttribute('id');
-            if (rId && mediaMap[rId]) {
-              const url = mediaMap[rId];
-              mediaUrls.push(url);
-              pBlocks.push({ type: 'image', url, rId, alt: 'Công thức MathType' });
-            }
-          }
+          return;
+        }
+
+        // Recurse through all child nodes in sequential order
+        for (const child of Array.from(el.childNodes)) {
+          walkNode(child);
         }
       }
+
+      walkNode(el);
 
       const trimmedText = pText.trim();
       if (trimmedText || mediaUrls.length > 0) {
