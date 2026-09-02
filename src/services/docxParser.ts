@@ -767,23 +767,54 @@ export async function parseDocxFile(
     }
   }
 
-  // 4. Segment Sequential Blocks into Questions based on markers: "Câu 1.", "Câu 1:", "Bài 1."
+  // 4. Segment Sequential Blocks into Questions based on sections and markers
   const questionSegments: {
     lines: string[];
     blocks: ContentBlock[];
     mediaUrls: string[];
+    section: 'part_1' | 'part_2' | 'part_3' | 'part_4';
   }[] = [];
+
+  let currentSection: 'part_1' | 'part_2' | 'part_3' | 'part_4' = 'part_1';
+  let hasExplicitSectionInDoc = false;
 
   let currentSegment: {
     lines: string[];
     blocks: ContentBlock[];
     mediaUrls: string[];
+    section: 'part_1' | 'part_2' | 'part_3' | 'part_4';
   } | null = null;
+
+  const part1HeaderRegex = /(?:PHẦN|Phần)\s*(?:I\b|1\b|nhất\b)/i;
+  const part2HeaderRegex = /(?:PHẦN|Phần)\s*(?:II\b|2\b|hai\b)/i;
+  const part3HeaderRegex = /(?:PHẦN|Phần)\s*(?:III\b|3\b|ba\b)/i;
+  const part4HeaderRegex = /(?:PHẦN|Phần)\s*(?:IV\b|4\b|tư\b|bốn\b)/i;
 
   const questionHeaderRegex = /^(?:câu|bài|question)\s*(\d+)[\s.:\-–]/i;
 
   for (const block of sequentialBlocks) {
-    const isNewQuestionStart = questionHeaderRegex.test(block.text);
+    const textTrimmed = block.text.trim();
+
+    // Check for Section Headers
+    if (part4HeaderRegex.test(textTrimmed)) {
+      hasExplicitSectionInDoc = true;
+      currentSection = 'part_4';
+      continue;
+    } else if (part3HeaderRegex.test(textTrimmed)) {
+      hasExplicitSectionInDoc = true;
+      currentSection = 'part_3';
+      continue;
+    } else if (part2HeaderRegex.test(textTrimmed)) {
+      hasExplicitSectionInDoc = true;
+      currentSection = 'part_2';
+      continue;
+    } else if (part1HeaderRegex.test(textTrimmed)) {
+      hasExplicitSectionInDoc = true;
+      currentSection = 'part_1';
+      continue;
+    }
+
+    const isNewQuestionStart = questionHeaderRegex.test(textTrimmed);
 
     if (isNewQuestionStart) {
       if (currentSegment && currentSegment.lines.length > 0) {
@@ -793,6 +824,7 @@ export async function parseDocxFile(
         lines: [block.text],
         blocks: [...block.contentBlocks],
         mediaUrls: [...block.mediaUrls],
+        section: currentSection,
       };
     } else {
       if (currentSegment) {
@@ -821,10 +853,11 @@ export async function parseDocxFile(
       lines: sequentialBlocks.map((b) => b.text),
       blocks: sequentialBlocks.flatMap((b) => b.contentBlocks),
       mediaUrls: sequentialBlocks.flatMap((b) => b.mediaUrls),
+      section: 'part_1',
     });
   }
 
-  // 5. Classify & Build Complete Question Objects
+  // 5. Classify & Build Complete Question Objects into 4 Sections
   const questions: Question[] = [];
   let mcqCount = 0;
   let tfCount = 0;
@@ -835,35 +868,121 @@ export async function parseDocxFile(
     const segment = questionSegments[qIdx];
     const fullText = segment.lines.join('\n');
     const qOrder = qIdx + 1;
+    const media = segment.mediaUrls
+      .filter((u) => u && u.trim().length > 10)
+      .map((url) => ({ type: 'image' as const, url }));
 
-    // Check for True/False indicators: a), b), c), d)
-    const tfPattern = /(?:^|\n)\s*([abcdABCD])[\s.)\-]|\b([abcdABCD])\)/g;
-    const tfMatches = Array.from(fullText.matchAll(tfPattern))
-      .map((m) => m[1] || m[2])
-      .map((s) => s.toLowerCase());
-    const uniqueTf = Array.from(new Set(tfMatches));
-
-    // Check for MCQ options: A., B., C., D.
-    const mcqPattern = /(?:^|\n|\s{2,})([ABCD])[\s.:\-–]/g;
-    const mcqMatches = Array.from(fullText.matchAll(mcqPattern)).map((m) => m[1]);
-    const uniqueMcq = Array.from(new Set(mcqMatches));
-
-    let type: QuestionType = 'mcq';
-    let confidenceScore = 0.95;
-
-    let stem = fullText;
     let solution = '';
-    let correctAnswer: string | string[] | undefined = undefined;
-
-    // Extract Solution / Answer block if present
     const solMatch = fullText.match(/(?:Lời giải|Hướng dẫn giải|Giải chi tiết|Đáp án)[\s.:\-–]([\s\S]*)/i);
     if (solMatch) {
       solution = solMatch[1].trim();
-      stem = fullText.substring(0, solMatch.index).trim();
     }
 
-    const media = segment.mediaUrls.map((url) => ({ type: 'image' as const, url }));
+    // IF EXPLICIT SECTION IN DOC: ROUTE EXACTLY TO THAT SECTION
+    if (hasExplicitSectionInDoc) {
+      if (segment.section === 'part_1') {
+        const mcqResult = extractMcqOptions(fullText);
+        questions.push({
+          id: `q-docx-${Date.now()}-${qOrder}`,
+          lessonId,
+          chapterId,
+          type: 'mcq',
+          difficulty: 'NB',
+          order: qOrder,
+          points: 0.25,
+          stem: mcqResult.isMcq ? mcqResult.stem : ensureMathDelimiters(fullText),
+          media,
+          options: mcqResult.options.length > 0 ? mcqResult.options : [
+            { id: 'A', text: 'Phương án A', latex: 'Phương án A' },
+            { id: 'B', text: 'Phương án B', latex: 'Phương án B' },
+            { id: 'C', text: 'Phương án C', latex: 'Phương án C' },
+            { id: 'D', text: 'Phương án D', latex: 'Phương án D' },
+          ],
+          correctAnswer: mcqResult.correctAnswer || 'A',
+          solution: ensureMathDelimiters(solution),
+          tags: ['Phần I', 'Trắc nghiệm nhiều lựa chọn'],
+          confidenceScore: 0.98,
+        });
+        mcqCount++;
+        continue;
+      }
 
+      if (segment.section === 'part_2') {
+        const tfResult = extractTrueFalseStatements(fullText);
+        questions.push({
+          id: `q-docx-${Date.now()}-${qOrder}`,
+          lessonId,
+          chapterId,
+          type: 'true_false',
+          difficulty: 'TH',
+          order: qOrder,
+          points: 1.0,
+          stem: tfResult.isTf ? tfResult.stem : ensureMathDelimiters(fullText),
+          media,
+          statements: tfResult.statements.length > 0 ? tfResult.statements : [
+            { id: 'a', statement: 'Mệnh đề a', isCorrect: true },
+            { id: 'b', statement: 'Mệnh đề b', isCorrect: false },
+            { id: 'c', statement: 'Mệnh đề c', isCorrect: true },
+            { id: 'd', statement: 'Mệnh đề d', isCorrect: true },
+          ],
+          solution: ensureMathDelimiters(solution),
+          tags: ['Phần II', 'Đúng Sai'],
+          confidenceScore: 0.98,
+        });
+        tfCount++;
+        continue;
+      }
+
+      if (segment.section === 'part_3') {
+        let acceptedVal = '0';
+        const keyMatch = fullText.match(/(?:kết quả là|đáp án là|nhập số|giá trị bằng|bằng|key)[\s.:=–\s]*([+-]?\d+(?:[.,/]\d+)?)/i);
+        if (keyMatch) {
+          acceptedVal = keyMatch[1].replace(',', '.');
+        }
+
+        questions.push({
+          id: `q-docx-${Date.now()}-${qOrder}`,
+          lessonId,
+          chapterId,
+          type: 'short_answer',
+          difficulty: 'VD',
+          order: qOrder,
+          points: 0.5,
+          stem: ensureMathDelimiters(fullText),
+          media,
+          shortAnswerKey: {
+            acceptedValues: [acceptedVal],
+            isNumeric: true,
+          },
+          solution: ensureMathDelimiters(solution),
+          tags: ['Phần III', 'Trả lời ngắn'],
+          confidenceScore: 0.98,
+        });
+        saCount++;
+        continue;
+      }
+
+      if (segment.section === 'part_4') {
+        questions.push({
+          id: `q-docx-${Date.now()}-${qOrder}`,
+          lessonId,
+          chapterId,
+          type: 'essay',
+          difficulty: 'VDC',
+          order: qOrder,
+          points: 1.0,
+          stem: ensureMathDelimiters(fullText),
+          media,
+          solution: ensureMathDelimiters(solution),
+          tags: ['Phần IV', 'Tự luận'],
+          confidenceScore: 0.98,
+        });
+        essayCount++;
+        continue;
+      }
+    }
+
+    // AUTO-INFER SECTION IF NO EXPLICIT SECTION HEADER WAS FOUND
     // 1. Try True/False first (a, b, c, d with [ĐÚNG], [SAI])
     const tfResult = extractTrueFalseStatements(fullText);
     if (tfResult.isTf) {
@@ -880,7 +999,7 @@ export async function parseDocxFile(
         media,
         statements: tfResult.statements,
         solution: ensureMathDelimiters(solution),
-        tags: ['Đúng Sai', 'Nhập từ Word'],
+        tags: ['Phần II', 'Đúng Sai'],
         confidenceScore: 0.98,
       });
       continue;
@@ -903,16 +1022,15 @@ export async function parseDocxFile(
         options: mcqResult.options,
         correctAnswer: mcqResult.correctAnswer || 'A',
         solution: ensureMathDelimiters(solution),
-        tags: ['Trắc nghiệm', 'Nhập từ Word'],
+        tags: ['Phần I', 'Trắc nghiệm nhiều lựa chọn'],
         confidenceScore: 0.98,
       });
       continue;
     }
-    // CLASSIFY TYPE 3: SHORT ANSWER OR ESSAY
-    else if (/trả lời ngắn|kết quả là|nhập số/i.test(fullText)) {
-      type = 'short_answer';
-      saCount++;
 
+    // 3. Short Answer
+    if (/trả lời ngắn|kết quả là|nhập số/i.test(fullText)) {
+      saCount++;
       questions.push({
         id: `q-docx-${Date.now()}-${qOrder}`,
         lessonId,
@@ -921,35 +1039,35 @@ export async function parseDocxFile(
         difficulty: 'VD',
         order: qOrder,
         points: 0.5,
-        stem: ensureMathDelimiters(stem),
+        stem: ensureMathDelimiters(fullText),
         media,
         shortAnswerKey: {
           acceptedValues: ['0'],
           isNumeric: true,
         },
         solution: ensureMathDelimiters(solution),
-        tags: ['Trả lời ngắn', 'Nhập từ Word'],
+        tags: ['Phần III', 'Trả lời ngắn'],
         confidenceScore: 0.85,
       });
-    } else {
-      type = 'essay';
-      essayCount++;
-
-      questions.push({
-        id: `q-docx-${Date.now()}-${qOrder}`,
-        lessonId,
-        chapterId,
-        type: 'essay',
-        difficulty: 'VDC',
-        order: qOrder,
-        points: 1.0,
-        stem: ensureMathDelimiters(stem),
-        media,
-        solution: ensureMathDelimiters(solution),
-        tags: ['Tự luận', 'Nhập từ Word'],
-        confidenceScore: 0.85,
-      });
+      continue;
     }
+
+    // 4. Default Essay
+    essayCount++;
+    questions.push({
+      id: `q-docx-${Date.now()}-${qOrder}`,
+      lessonId,
+      chapterId,
+      type: 'essay',
+      difficulty: 'VDC',
+      order: qOrder,
+      points: 1.0,
+      stem: ensureMathDelimiters(fullText),
+      media,
+      solution: ensureMathDelimiters(solution),
+      tags: ['Phần IV', 'Tự luận'],
+      confidenceScore: 0.85,
+    });
   }
 
   const report: DocxParseReport = {

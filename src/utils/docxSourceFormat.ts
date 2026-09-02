@@ -83,7 +83,7 @@ export function convertQuestionsToSourceText(
   let currentQuestionIndex = 1;
 
   if (mcqQuestions.length > 0) {
-    lines.push('PHẦN I. Câu trắc nghiệm nhiều phương án lựa chọn');
+    lines.push('PHẦN I. Câu trắc nghiệm nhiều phương án lựa chọn. Mỗi câu hỏi thí sinh chỉ chọn một phương án.');
     lines.push('');
 
     for (const q of mcqQuestions) {
@@ -118,7 +118,7 @@ export function convertQuestionsToSourceText(
   }
 
   if (tfQuestions.length > 0) {
-    lines.push('PHẦN II. Câu trắc nghiệm đúng sai');
+    lines.push('PHẦN II. Câu trắc nghiệm đúng sai. Trong mỗi ý a), b), c), d) ở mỗi câu, thí sinh chọn đúng hoặc sai.');
     lines.push('');
 
     for (const q of tfQuestions) {
@@ -150,7 +150,7 @@ export function convertQuestionsToSourceText(
   }
 
   if (saQuestions.length > 0) {
-    lines.push('PHẦN III. Câu trắc nghiệm trả lời ngắn');
+    lines.push('PHẦN III. Câu trắc nghiệm trả lời ngắn.');
     lines.push('');
 
     for (const q of saQuestions) {
@@ -164,9 +164,8 @@ export function convertQuestionsToSourceText(
         }
       }
 
-      if (q.shortAnswerKey?.acceptedValues?.length) {
-        lines.push(`[answer:${q.shortAnswerKey.acceptedValues.join(';')}]`);
-      }
+      const val = q.shortAnswerKey?.acceptedValues?.[0] || '0';
+      lines.push(`[key: ${val}]`);
 
       if (q.solution) {
         lines.push('[solution]');
@@ -179,7 +178,7 @@ export function convertQuestionsToSourceText(
   }
 
   if (essayQuestions.length > 0) {
-    lines.push('PHẦN IV. Tự luận');
+    lines.push('PHẦN IV. Câu hỏi tự luận.');
     lines.push('');
 
     for (const q of essayQuestions) {

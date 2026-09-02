@@ -510,24 +510,85 @@ export const TwoPaneDocxEditor: React.FC<TwoPaneDocxEditorProps> = ({
           <div className="flex-1 p-4 sm:p-5 overflow-y-auto space-y-5">
             {questions.map((q, idx) => {
               const isSelected = selectedQuestionIndex === idx;
+
+              // Determine current question section (part_1, part_2, part_3, part_4)
+              const getSection = (item: Question) => {
+                if (item.tags?.some((t) => t.includes('Phần I'))) return 'part_1';
+                if (item.tags?.some((t) => t.includes('Phần II'))) return 'part_2';
+                if (item.tags?.some((t) => t.includes('Phần III'))) return 'part_3';
+                if (item.tags?.some((t) => t.includes('Phần IV'))) return 'part_4';
+                if (item.type === 'mcq') return 'part_1';
+                if (item.type === 'true_false') return 'part_2';
+                if (item.type === 'short_answer') return 'part_3';
+                return 'part_4';
+              };
+
+              const currentSec = getSection(q);
+              const prevSec = idx > 0 ? getSection(questions[idx - 1]) : null;
+              const isFirstOfSection = idx === 0 || currentSec !== prevSec;
+
+              const sectionMeta = {
+                part_1: {
+                  title: 'PHẦN I. Câu trắc nghiệm nhiều phương án lựa chọn.',
+                  subtitle: 'Mỗi câu hỏi thí sinh chỉ chọn một phương án.',
+                  badge: 'Phần I',
+                  borderClass: 'border-l-4 border-blue-600 bg-blue-50/80 text-blue-950 border-blue-200',
+                },
+                part_2: {
+                  title: 'PHẦN II. Câu trắc nghiệm đúng sai.',
+                  subtitle: 'Trong mỗi ý a), b), c), d) ở mỗi câu, thí sinh chọn đúng hoặc sai.',
+                  badge: 'Phần II',
+                  borderClass: 'border-l-4 border-teal-600 bg-teal-50/80 text-teal-950 border-teal-200',
+                },
+                part_3: {
+                  title: 'PHẦN III. Câu trắc nghiệm trả lời ngắn.',
+                  subtitle: 'Thí sinh điền kết quả vào ô trả lời tương ứng.',
+                  badge: 'Phần III',
+                  borderClass: 'border-l-4 border-purple-600 bg-purple-50/80 text-purple-950 border-purple-200',
+                },
+                part_4: {
+                  title: 'PHẦN IV. Câu hỏi tự luận.',
+                  subtitle: 'Thí sinh trình bày lời giải chi tiết theo các bước.',
+                  badge: 'Phần IV',
+                  borderClass: 'border-l-4 border-amber-600 bg-amber-50/80 text-amber-950 border-amber-200',
+                },
+              }[currentSec];
+
               return (
-                <div
-                  key={q.id || idx}
-                  ref={(el) => (leftCardsRef.current[idx] = el)}
-                  onClick={() => setSelectedQuestionIndex(idx)}
-                  className={`bg-white rounded-3xl border p-5 transition-all space-y-4 shadow-sm relative ${
-                    isSelected
-                      ? 'border-teal-500 ring-2 ring-teal-400/40 shadow-md'
-                      : 'border-slate-200 hover:border-teal-300'
-                  }`}
-                >
-                  {/* Card Top Header: Question Number, Points, Badges, Action Icons */}
-                  <div className="flex flex-wrap items-center justify-between gap-2 pb-2">
-                    <div className="flex flex-wrap items-center space-x-2">
-                      {/* [Câu X.] Badge */}
-                      <span className="border border-blue-400 text-blue-700 bg-white font-bold px-3 py-1 rounded-lg text-xs shadow-2xs">
-                        Câu {idx + 1}.
-                      </span>
+                <React.Fragment key={q.id || idx}>
+                  {/* 🌟 SECTION BANNER (PHẦN I / II / III / IV) */}
+                  {isFirstOfSection && (
+                    <div className={`p-4 rounded-2xl border shadow-xs transition ${sectionMeta.borderClass}`}>
+                      <div className="flex flex-wrap items-baseline gap-2">
+                        <h3 className="font-black text-sm uppercase tracking-wide">
+                          {sectionMeta.title}
+                        </h3>
+                        {sectionMeta.subtitle && (
+                          <span className="italic text-xs opacity-85 font-serif">
+                            {sectionMeta.subtitle}
+                          </span>
+                        )}
+                      </div>
+                    </div>
+                  )}
+
+                  {/* QUESTION CARD */}
+                  <div
+                    ref={(el) => (leftCardsRef.current[idx] = el)}
+                    onClick={() => setSelectedQuestionIndex(idx)}
+                    className={`bg-white rounded-3xl border p-5 transition-all space-y-4 shadow-sm relative ${
+                      isSelected
+                        ? 'border-teal-500 ring-2 ring-teal-400/40 shadow-md'
+                        : 'border-slate-200 hover:border-teal-300'
+                    }`}
+                  >
+                    {/* Card Top Header: Question Number, Points, Badges, Action Icons */}
+                    <div className="flex flex-wrap items-center justify-between gap-2 pb-2">
+                      <div className="flex flex-wrap items-center space-x-2">
+                        {/* [Phần X - Câu Y.] Badge */}
+                        <span className="border border-blue-400 text-blue-700 bg-white font-bold px-3 py-1 rounded-lg text-xs shadow-2xs">
+                          {sectionMeta.badge} - Câu {idx + 1}.
+                        </span>
 
                       {/* [Nhập điểm] */}
                       <div className="flex items-center space-x-1 border border-slate-300 bg-white px-2.5 py-1 rounded-lg text-xs">
@@ -742,8 +803,9 @@ export const TwoPaneDocxEditor: React.FC<TwoPaneDocxEditorProps> = ({
                     </div>
                   )}
                 </div>
-              );
-            })}
+              </React.Fragment>
+            );
+          })}
           </div>
         </div>
 
