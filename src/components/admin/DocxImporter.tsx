@@ -6,6 +6,7 @@ import { api } from '../../services/api';
 import { Question, DocxParseReport } from '../../types';
 import { downloadExamDocx } from '../../services/docxExporter';
 import { downloadMoodleXml, downloadGiftFile } from '../../services/lmsExporter';
+import { QuestionEditorStudio } from './QuestionEditorStudio';
 import {
   FileUp,
   FileCheck,
@@ -23,12 +24,13 @@ import {
   Layers,
   Bot,
   FileSpreadsheet,
+  Edit3,
 } from 'lucide-react';
 
 export const DocxImporter: React.FC = () => {
   const { lessons, chapters, showToast, reloadCurriculum } = useApp();
 
-  const [activeTab, setActiveTab] = useState<'import' | 'export' | 'ai_matrix'>('import');
+  const [activeTab, setActiveTab] = useState<'import' | 'editor' | 'export'>('import');
   const [selectedLessonId, setSelectedLessonId] = useState<string>(lessons[0]?.id || 'lesson-1');
 
   // Import State
@@ -43,13 +45,6 @@ export const DocxImporter: React.FC = () => {
   const [exportIncludeSolutions, setExportIncludeSolutions] = useState<boolean>(true);
   const [exportDuration, setExportDuration] = useState<number>(45);
   const [isExportingDocx, setIsExportingDocx] = useState<boolean>(false);
-
-  // AI Matrix Generator State
-  const [nbCount, setNbCount] = useState<number>(6);
-  const [thCount, setThCount] = useState<number>(4);
-  const [vdCount, setVdCount] = useState<number>(2);
-  const [vdcCount, setVdcCount] = useState<number>(1);
-  const [isGeneratingAi, setIsGeneratingAi] = useState<boolean>(false);
 
   const currentLesson = lessons.find((l) => l.id === selectedLessonId) || lessons[0];
   const currentChapter = chapters.find((c) => c.id === currentLesson?.chapterId) || chapters[0];
@@ -178,13 +173,13 @@ export const DocxImporter: React.FC = () => {
         <div>
           <div className="flex items-center space-x-2 text-teal-800 text-xs font-bold uppercase tracking-wider mb-1">
             <FileUp className="w-4 h-4 text-teal-600" />
-            <span>Studio Ngân Hàng Đề Thi &amp; Xuất Bản Đa Nền Tảng</span>
+            <span>Studio Ngân Hàng Đề Thi &amp; Soạn Công Thức Toán</span>
           </div>
           <h1 className="text-xl sm:text-2xl font-black text-slate-900 tracking-tight">
-            Quản Lý &amp; Xuất Bản Đề Thi Toán 12
+            Quản Lý, Soạn Thảo &amp; Xuất Bản Đề Thi Toán 12
           </h1>
           <p className="text-xs sm:text-sm text-slate-500 mt-1">
-            Nhập đề Word (OMML/LaTeX) • Xuất đề Word in ấn chuẩn Bộ • Xuất Moodle XML &amp; GIFT
+            Soạn công thức toán trực quan (∑) • Nhập đề Word (OMML/LaTeX) • Xuất Word in ấn chuẩn Bộ GD&amp;ĐT
           </p>
         </div>
 
@@ -205,8 +200,8 @@ export const DocxImporter: React.FC = () => {
         </div>
       </div>
 
-      {/* 3 Sub-Tabs */}
-      <div className="flex items-center space-x-2 border-b border-slate-200 pb-3 text-xs font-bold">
+      {/* 3 Main Tabs */}
+      <div className="flex flex-wrap items-center gap-2 border-b border-slate-200 pb-3 text-xs font-bold">
         <button
           onClick={() => setActiveTab('import')}
           className={`px-4 py-2 rounded-xl transition flex items-center gap-1.5 ${
@@ -220,6 +215,18 @@ export const DocxImporter: React.FC = () => {
         </button>
 
         <button
+          onClick={() => setActiveTab('editor')}
+          className={`px-4 py-2 rounded-xl transition flex items-center gap-1.5 ${
+            activeTab === 'editor'
+              ? 'bg-teal-700 text-white shadow-sm'
+              : 'bg-white text-slate-600 hover:bg-slate-100 border border-slate-200'
+          }`}
+        >
+          <span className="text-sm font-black">∑</span>
+          <span>2. Soạn Thảo Đề Thi &amp; Chèn Công Thức (Studio)</span>
+        </button>
+
+        <button
           onClick={() => setActiveTab('export')}
           className={`px-4 py-2 rounded-xl transition flex items-center gap-1.5 ${
             activeTab === 'export'
@@ -228,7 +235,7 @@ export const DocxImporter: React.FC = () => {
           }`}
         >
           <Download className="w-4 h-4 text-amber-500" />
-          <span>2. Xuất Đề Word (.DOCX) &amp; Moodle LMS</span>
+          <span>3. Xuất Đề Word (.DOCX) &amp; Moodle LMS</span>
         </button>
       </div>
 
@@ -286,14 +293,24 @@ export const DocxImporter: React.FC = () => {
                   </p>
                 </div>
 
-                <button
-                  onClick={handleSaveToBank}
-                  disabled={isSaving}
-                  className="px-6 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs rounded-xl transition flex items-center space-x-1.5 shadow"
-                >
-                  {isSaving ? <Loader2 className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />}
-                  <span>Lưu vào ngân hàng bài học</span>
-                </button>
+                <div className="flex items-center space-x-2">
+                  <button
+                    onClick={() => setActiveTab('editor')}
+                    className="px-5 py-2.5 bg-teal-50 hover:bg-teal-100 text-teal-900 font-bold text-xs rounded-xl border border-teal-200 transition flex items-center space-x-1.5 shadow-xs"
+                  >
+                    <Edit3 className="w-4 h-4 text-teal-700" />
+                    <span>Mở trong Studio Soạn thảo (∑)</span>
+                  </button>
+
+                  <button
+                    onClick={handleSaveToBank}
+                    disabled={isSaving}
+                    className="px-6 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs rounded-xl transition flex items-center space-x-1.5 shadow"
+                  >
+                    {isSaving ? <Loader2 className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />}
+                    <span>Lưu vào ngân hàng bài học</span>
+                  </button>
+                </div>
               </div>
 
               {/* Preview Cards */}
@@ -315,7 +332,16 @@ export const DocxImporter: React.FC = () => {
         </div>
       )}
 
-      {/* TAB 2: EXPORT DOCX & LMS */}
+      {/* TAB 2: VISUAL QUESTION & MATH FORMULA EDITOR STUDIO */}
+      {activeTab === 'editor' && (
+        <QuestionEditorStudio
+          lessonId={selectedLessonId}
+          initialQuestions={parsedQuestions.length > 0 ? parsedQuestions : undefined}
+          onSaveSuccess={(qs) => setParsedQuestions(qs)}
+        />
+      )}
+
+      {/* TAB 3: EXPORT DOCX & LMS */}
       {activeTab === 'export' && (
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
           {/* Word Export Card */}
@@ -349,19 +375,19 @@ export const DocxImporter: React.FC = () => {
                     onChange={(e) => setExportIncludeSolutions(e.target.checked)}
                     className="w-4 h-4 accent-teal-600 rounded"
                   />
-                  <span className="font-semibold text-slate-800">Kèm Lời Giải Chi Tiết Từng Bước (Bản Giáo Viên)</span>
+                  <span className="font-semibold text-slate-800">Kèm Hướng Dẫn Giải Chi Tiết</span>
                 </label>
 
-                <div className="flex items-center space-x-2 pt-1">
-                  <span className="text-slate-600 font-semibold">Thời gian làm bài:</span>
+                <div className="flex items-center space-x-3 pt-1">
+                  <span className="font-semibold text-slate-700">Thời gian làm bài:</span>
                   <select
                     value={exportDuration}
                     onChange={(e) => setExportDuration(parseInt(e.target.value))}
-                    className="p-1.5 bg-slate-50 border border-slate-300 rounded-lg text-xs font-bold"
+                    className="bg-slate-50 border border-slate-200 rounded-lg px-2.5 py-1 text-xs font-bold"
                   >
-                    <option value={15}>15 phút (Đề kiểm tra nhanh)</option>
+                    <option value={15}>15 phút (Kiểm tra 15p)</option>
                     <option value={45}>45 phút (Kiểm tra 1 tiết)</option>
-                    <option value={90}>90 phút (Đề thi thử THPT)</option>
+                    <option value={90}>90 phút (Thi Học Kỳ / Tốt Nghiệp)</option>
                   </select>
                 </div>
               </div>
@@ -370,48 +396,52 @@ export const DocxImporter: React.FC = () => {
             <button
               onClick={handleExportDocx}
               disabled={isExportingDocx}
-              className="w-full py-3 bg-teal-700 hover:bg-teal-800 text-white font-bold text-xs rounded-2xl transition flex items-center justify-center gap-2 shadow"
+              className="w-full py-3 bg-teal-700 hover:bg-teal-800 active:scale-98 text-white font-bold text-xs rounded-xl shadow transition flex items-center justify-center space-x-2 mt-4"
             >
               {isExportingDocx ? <Loader2 className="w-4 h-4 animate-spin" /> : <Download className="w-4 h-4" />}
-              <span>Tải Đề Thi Word (.docx) Ngay</span>
+              <span>Tải File Đề Thi Word (.docx) Chuẩn Bộ GD&amp;ĐT</span>
             </button>
           </div>
 
-          {/* Moodle LMS & GIFT Export Card */}
+          {/* LMS LMS Card */}
           <div className="bg-white rounded-3xl border border-slate-200 p-6 sm:p-8 shadow-sm space-y-6 flex flex-col justify-between">
             <div className="space-y-4">
               <div className="w-12 h-12 rounded-2xl bg-amber-100 text-amber-800 flex items-center justify-center">
-                <Layers className="w-6 h-6" />
+                <FileSpreadsheet className="w-6 h-6" />
               </div>
               <div>
-                <h3 className="text-lg font-bold text-slate-900">Xuất Sang Moodle XML &amp; GIFT</h3>
+                <h3 className="text-lg font-bold text-slate-900">Xuất Ngân Hàng Moodle &amp; GIFT</h3>
                 <p className="text-xs text-slate-500 mt-1">
-                  Tương thích 100% với Moodle LMS, Quizizz, Google Forms và các phần mềm trộn đề trắc nghiệm trường học.
+                  Xuất dữ liệu câu hỏi dạng chuẩn XML/GIFT tương thích 100% với hệ thống LMS trường học (Moodle, Canvas, Blackboard).
                 </p>
               </div>
 
-              <div className="p-4 bg-slate-50 rounded-2xl border border-slate-200 text-xs text-slate-600 space-y-1.5">
-                <div className="font-bold text-slate-900">Chuẩn hỗ trợ:</div>
-                <div>• <strong>Moodle XML</strong>: Giữ nguyên công thức toán, đáp án và lời giải.</div>
-                <div>• <strong>GIFT Format</strong>: Định dạng text nhẹ, dễ chỉnh sửa hàng loạt.</div>
+              <div className="p-4 bg-amber-50/60 rounded-2xl border border-amber-200 text-xs text-amber-900 space-y-1.5">
+                <div className="font-bold flex items-center gap-1">
+                  <Sparkles className="w-3.5 h-3.5" />
+                  <span>Chuẩn hóa định dạng LMS:</span>
+                </div>
+                <p className="text-[11px] leading-relaxed">
+                  Tự động chuyển đổi công thức toán học và phân bổ 4 dạng câu hỏi (MCQ, Đúng/Sai, Trả lời ngắn, Tự luận) phù hợp với ngân hàng câu hỏi Moodle.
+                </p>
               </div>
             </div>
 
-            <div className="grid grid-cols-2 gap-3">
+            <div className="grid grid-cols-2 gap-3 mt-4">
               <button
                 onClick={handleExportMoodle}
-                className="py-3 bg-amber-600 hover:bg-amber-700 text-white font-bold text-xs rounded-2xl transition flex items-center justify-center gap-1.5 shadow"
+                className="py-3 bg-amber-600 hover:bg-amber-700 active:scale-98 text-white font-bold text-xs rounded-xl shadow transition flex items-center justify-center space-x-1.5"
               >
                 <Download className="w-4 h-4" />
-                <span>Moodle XML</span>
+                <span>Xuất Moodle XML</span>
               </button>
 
               <button
                 onClick={handleExportGift}
-                className="py-3 bg-slate-800 hover:bg-slate-900 text-white font-bold text-xs rounded-2xl transition flex items-center justify-center gap-1.5 shadow"
+                className="py-3 bg-slate-800 hover:bg-slate-900 active:scale-98 text-white font-bold text-xs rounded-xl shadow transition flex items-center justify-center space-x-1.5"
               >
                 <Download className="w-4 h-4" />
-                <span>GIFT Text</span>
+                <span>Xuất GIFT File</span>
               </button>
             </div>
           </div>
