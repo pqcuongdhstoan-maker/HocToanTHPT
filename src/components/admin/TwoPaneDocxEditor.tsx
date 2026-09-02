@@ -615,20 +615,26 @@ export const TwoPaneDocxEditor: React.FC<TwoPaneDocxEditorProps> = ({
                   </div>
 
                   {/* Attached Media Images if any */}
-                  {q.media && q.media.length > 0 && (
+                  {q.media && q.media.filter((m) => m && m.url && m.url.trim().length > 10).length > 0 && (
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 py-1">
-                      {q.media.map((m, mi) => (
-                        <div
-                          key={mi}
-                          className="p-2 bg-slate-50 rounded-2xl border border-slate-200 flex flex-col items-center"
-                        >
-                          <img
-                            src={m.url}
-                            alt={`Hình ảnh câu ${idx + 1}`}
-                            className="max-h-48 object-contain rounded-xl shadow-2xs"
-                          />
-                        </div>
-                      ))}
+                      {q.media
+                        .filter((m) => m && m.url && m.url.trim().length > 10)
+                        .map((m, mi) => (
+                          <div
+                            key={mi}
+                            className="p-2 bg-slate-50 rounded-2xl border border-slate-200 flex flex-col items-center"
+                          >
+                            <img
+                              src={m.url}
+                              alt=""
+                              className="max-h-48 object-contain rounded-xl shadow-2xs"
+                              onError={(e) => {
+                                const target = e.currentTarget;
+                                if (target.parentElement) target.parentElement.style.display = 'none';
+                              }}
+                            />
+                          </div>
+                        ))}
                     </div>
                   )}
 

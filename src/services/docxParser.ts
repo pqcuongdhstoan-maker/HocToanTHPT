@@ -8,6 +8,7 @@ import {
   DocxParseWarning,
   ContentBlock,
 } from '../types';
+import { parseContentToNodes, serializeNodesToLatex } from '../utils/mathNodeParser';
 
 /**
  * Normalizes Unicode mathematical symbols to standard LaTeX macros
@@ -84,39 +85,198 @@ export function normalizeMathSymbols(raw: string): string {
 }
 
 /**
- * Automatically wraps mathematical notations in $...$ for visual MathJax rendering
- * when they are extracted from plain text runs (e.g. f(x), \mathbb{R}, AB = 10, \widehat{A} = 45^\circ, \sqrt{2})
+ * Safely wraps mathematical notations in $...$ for visual MathJax rendering
+ * only on pure text segments, preventing double wrapping of existing formulas.
  */
 export function ensureMathDelimiters(text: string): string {
   if (!text) return '';
 
-  let res = text;
+  const nodes = parseContentToNodes(text);
+  const processed = nodes.map((node) => {
+    if (node.type !== 'text') {
+      return node; // Preserve existing math intact!
+    }
 
-  // Wrap standalone \mathbb{R}, \mathbb{Z} ... if not already inside $
-  res = res.replace(/(?<!\$)\\mathbb\{[A-Z]\}(?!\$)/g, (m) => `$${m}$`);
+    let t = node.text;
 
-  // Wrap f(x), f'(x), g(x), y=f(x) if not inside $
-  res = res.replace(/(?<![\$\w\\])\b([fg]\s*\(\s*x\s*\)|[fg]'\s*\(\s*x\s*\)|y\s*=\s*[fg]\s*\(\s*x\s*\))(?!\$)/g, (m) => `$${m}$`);
+    // Wrap \mathbb{R}, \mathbb{Z} ...
+    t = t.replace(/\\mathbb\{[A-Z]\}/g, (m) => `$${m}$`);
 
-  // Wrap geometric angle expressions: \widehat{A} = 45^0 or \widehat{A} = 45^\circ or \angle A = ...
-  res = res.replace(/(?<!\$)(\\widehat\{[A-Z]\}\s*=\s*\d+[\^0°^{\\circ}]+|\\hat\{[A-Z]\}\s*=\s*\d+[\^0°^{\\circ}]+)(?!\$)/g, (m) => {
-    const clean = m.replace(/\^0|\^\{\\circ\}|°/g, '^{\\circ}');
-    return `$${clean}$`;
+    // Wrap f(x), f'(x), g(x), y=f(x)
+    t = t.replace(/\b([fg]\s*\(\s*x\s*\)|[fg]'\s*\(\s*x\s*\)|y\s*=\s*[fg]\s*\(\s*x\s*\))/g, (m) => `$${m}$`);
+
+    // Wrap geometric angle expressions: \widehat{A} = 45^0 or \widehat{A} = 45^\circ
+    t = t.replace(/(\\widehat\{[A-Z]\}\s*=\s*\d+[\^0°^{\\circ}]*|\\hat\{[A-Z]\}\s*=\s*\d+[\^0°^{\\circ}]*)/g, (m) => {
+      const clean = m.replace(/\^0|\^\{\\circ\}|°/g, '^{\\circ}');
+      return `$${clean}$`;
+    });
+
+    // Wrap side lengths: AB = 10, AC = 6, BC = ...
+    t = t.replace(/\b([A-Z]{2}\s*=\s*\d+)/g, (m) => `$${m}$`);
+
+    // Wrap triangle names: tam giác ABC -> tam giác $ABC$
+    t = t.replace(/(tam giác\s+)([A-Z]{3})\b/gi, (_, prefix, tri) => `${prefix}$${tri}$`);
+
+    // Wrap square roots: 30\sqrt{2}, 15\sqrt{3}, \sqrt{2}
+    t = t.replace(/(\d*\\sqrt\{[^\}]+\}|\d*\\sqrt\s*\d+)/g, (m) => `$${m}$`);
+
+    // Wrap intervals: (-\infty; 1), (-2; 1), (-2; +\infty), (-\infty; -2), (-1; 0)
+    t = t.replace(/\(([+-]?\\infty|-?\d+)\s*;\s*([+-]?\\infty|-?\d+)\)/g, (m) => `$${m}$`);
+
+    // Wrap relations: f(2024) < f(2025)
+    t = t.replace(/\b([fg]\s*\(\s*\d+\s*\)\s*[<>=≤≥]\s*[fg]\s*\(\s*\d+\s*\))/g, (m) => `$${m}$`);
+
+    // Wrap simple variable equations: x = 2, y = 3
+    t = t.replace(/\b([xy]\s*=\s*-?\d+)\b/g, (m) => `$${m}$`);
+
+    return { ...node, text: t };
   });
 
-  // Wrap side lengths: AB = 10, AC = 6, BC = ...
-  res = res.replace(/(?<![\$\w\\])\b([A-Z]{2}\s*=\s*\d+)(?!\$)/g, (m) => `$${m}$`);
+  return serializeNodesToLatex(processed);
+}
 
-  // Wrap triangle names: tam giác ABC -> tam giác $ABC$
-  res = res.replace(/(tam giác\s+)([A-Z]{3})\b(?!\$)/gi, (_, prefix, tri) => `${prefix}$${tri}$`);
+/**
+ * Robust extraction of MCQ Options (A, B, C, D) supporting asterisk *A., *B., *C., *D.
+ */
+export function extractMcqOptions(fullText: string): {
+  isMcq: boolean;
+  stem: string;
+  options: Option[];
+  correctAnswer?: string;
+} {
+  const optionHeaderRegex = /(?:^|\n|\s{1,})(\*?\s*[ABCD])[\s.:\)\-–]/g;
+  const matches = Array.from(fullText.matchAll(optionHeaderRegex));
 
-  // Wrap square roots like 30\sqrt{2}, 15\sqrt{3}, \sqrt{2} if not inside $
-  res = res.replace(/(?<![\$\\])(\d*\\sqrt\{[^\}]+\}|\d*\\sqrt\s*\d+)(?!\$)/g, (m) => `$${m}$`);
+  const uniqueLetters = Array.from(new Set(matches.map((m) => m[1].replace('*', '').trim().toUpperCase())));
+  if (uniqueLetters.length < 2) {
+    return { isMcq: false, stem: fullText, options: [] };
+  }
 
-  // Wrap intervals like (-\infty; 1), (-2; 1), (-2; +\infty), (-\infty; -2)
-  res = res.replace(/(?<!\$)\(([+-]?\\infty|-?\d+)\s*;\s*([+-]?\\infty|-?\d+)\)(?!\$)/g, (m) => `$${m}$`);
+  const firstMatchIndex = matches[0].index !== undefined ? matches[0].index : 0;
+  const stem = fullText.substring(0, firstMatchIndex).trim();
 
-  return res;
+  let correctAnswer = 'A';
+  const optionsMap: Record<string, string> = { A: '', B: '', C: '', D: '' };
+
+  for (let i = 0; i < matches.length; i++) {
+    const curMatch = matches[i];
+    const rawTag = curMatch[1].trim();
+    const isStar = rawTag.startsWith('*');
+    const letter = rawTag.replace('*', '').trim().toUpperCase();
+
+    if (isStar) {
+      correctAnswer = letter;
+    }
+
+    const startPos = (curMatch.index || 0) + curMatch[0].length;
+    const endPos = i < matches.length - 1 ? (matches[i + 1].index || fullText.length) : fullText.length;
+
+    let content = fullText.substring(startPos, endPos).trim();
+
+    // Remove any trailing solution markers if at last option
+    const solIdx = content.search(/(?:Lời giải|Hướng dẫn giải|Giải chi tiết|Đáp án)[\s.:\-–]/i);
+    if (solIdx >= 0) {
+      content = content.substring(0, solIdx).trim();
+    }
+
+    optionsMap[letter] = content;
+  }
+
+  // Also check if answer was indicated in text like "Chọn D" or "Đáp án: D"
+  const ansMatch = fullText.match(/(?:Chọn|Đáp án|Key)\s*([ABCD])/i);
+  if (ansMatch) {
+    correctAnswer = ansMatch[1].toUpperCase();
+  }
+
+  const options: Option[] = ['A', 'B', 'C', 'D'].map((id) => {
+    const rawContent = optionsMap[id] || `Phương án ${id}`;
+    const cleanContent = ensureMathDelimiters(rawContent);
+    return {
+      id,
+      text: cleanContent,
+      latex: cleanContent,
+    };
+  });
+
+  return {
+    isMcq: true,
+    stem: ensureMathDelimiters(stem),
+    options,
+    correctAnswer,
+  };
+}
+
+/**
+ * Robust extraction of True/False statements (a, b, c, d) with [ĐÚNG], [SAI] tag parsing
+ */
+export function extractTrueFalseStatements(fullText: string): {
+  isTf: boolean;
+  stem: string;
+  statements: TrueFalseStatement[];
+} {
+  const stHeaderRegex = /(?:^|\n|\s{1,})(\*?\s*[abcdABCD])[\s.)\-]/g;
+  const matches = Array.from(fullText.matchAll(stHeaderRegex));
+
+  const uniqueLetters = Array.from(new Set(matches.map((m) => m[1].replace('*', '').trim().toLowerCase())));
+  if (uniqueLetters.length < 3 || (!uniqueLetters.includes('a') && !uniqueLetters.includes('b'))) {
+    return { isTf: false, stem: fullText, statements: [] };
+  }
+
+  const firstMatchIndex = matches[0].index !== undefined ? matches[0].index : 0;
+  const stem = fullText.substring(0, firstMatchIndex).trim();
+
+  const statementsMap: Record<string, { statement: string; isCorrect: boolean }> = {
+    a: { statement: 'Mệnh đề a', isCorrect: true },
+    b: { statement: 'Mệnh đề b', isCorrect: false },
+    c: { statement: 'Mệnh đề c', isCorrect: true },
+    d: { statement: 'Mệnh đề d', isCorrect: true },
+  };
+
+  for (let i = 0; i < matches.length; i++) {
+    const curMatch = matches[i];
+    const rawTag = curMatch[1].trim();
+    const letter = rawTag.replace('*', '').trim().toLowerCase();
+
+    const startPos = (curMatch.index || 0) + curMatch[0].length;
+    const endPos = i < matches.length - 1 ? (matches[i + 1].index || fullText.length) : fullText.length;
+
+    let content = fullText.substring(startPos, endPos).trim();
+
+    // Check for [ĐÚNG] or [SAI] tag
+    let isCorrect = true;
+    if (/\[\s*ĐÚNG\s*\]|\[\s*Đúng\s*\]|\[\s*Đ\s*\]|\(\s*Đúng\s*\)/i.test(content)) {
+      isCorrect = true;
+      content = content.replace(/\[\s*(?:ĐÚNG|Đúng|Đ)\s*\]|\(\s*(?:ĐÚNG|Đúng|Đ)\s*\)/gi, '').trim();
+    } else if (/\[\s*SAI\s*\]|\[\s*Sai\s*\]|\[\s*S\s*\]|\(\s*Sai\s*\)/i.test(content)) {
+      isCorrect = false;
+      content = content.replace(/\[\s*(?:SAI|Sai|S)\s*\]|\(\s*(?:SAI|Sai|S)\s*\)/gi, '').trim();
+    }
+
+    // Cut off any leaked next section headers (e.g. "Phần III: Câu hỏi trả lời ngắn", "Câu 2.", "Lời giải:")
+    const leakedSectionIdx = content.search(/(?:PHẦN|Phần)\s+(?:I|II|III|IV|\d+)|(?:Câu|câu)\s+\d+[\s.:]|(?:Lời giải|Hướng dẫn giải)/i);
+    if (leakedSectionIdx >= 0) {
+      content = content.substring(0, leakedSectionIdx).trim();
+    }
+
+    if (statementsMap[letter]) {
+      statementsMap[letter] = {
+        statement: ensureMathDelimiters(content),
+        isCorrect,
+      };
+    }
+  }
+
+  const statements: TrueFalseStatement[] = ['a', 'b', 'c', 'd'].map((id) => ({
+    id,
+    statement: statementsMap[id].statement,
+    isCorrect: statementsMap[id].isCorrect,
+  }));
+
+  return {
+    isTf: true,
+    stem: ensureMathDelimiters(stem),
+    statements,
+  };
 }
 
 /**
@@ -704,35 +864,10 @@ export async function parseDocxFile(
 
     const media = segment.mediaUrls.map((url) => ({ type: 'image' as const, url }));
 
-    // CLASSIFY TYPE 2: TRUE / FALSE
-    if (uniqueTf.length >= 3 && uniqueTf.includes('a') && uniqueTf.includes('b') && uniqueTf.includes('c')) {
-      type = 'true_false';
+    // 1. Try True/False first (a, b, c, d with [ĐÚNG], [SAI])
+    const tfResult = extractTrueFalseStatements(fullText);
+    if (tfResult.isTf) {
       tfCount++;
-
-      const statements: TrueFalseStatement[] = [
-        { id: 'a', statement: 'Mệnh đề a', isCorrect: true },
-        { id: 'b', statement: 'Mệnh đề b', isCorrect: false },
-        { id: 'c', statement: 'Mệnh đề c', isCorrect: true },
-        { id: 'd', statement: 'Mệnh đề d', isCorrect: true },
-      ];
-
-      // Apply math delimiter wrapping
-      stem = ensureMathDelimiters(stem);
-      solution = ensureMathDelimiters(solution);
-
-      const rawStatements = stem.split(/(?:^|\n)\s*([abcdABCD])[\s.)\-]/);
-      if (rawStatements.length > 2) {
-        stem = ensureMathDelimiters(rawStatements[0].trim());
-        for (let i = 1; i < rawStatements.length; i += 2) {
-          const letter = rawStatements[i].toLowerCase();
-          const content = rawStatements[i + 1]?.trim() || '';
-          const targetSt = statements.find((s) => s.id === letter);
-          if (targetSt && content) {
-            targetSt.statement = ensureMathDelimiters(content);
-          }
-        }
-      }
-
       questions.push({
         id: `q-docx-${Date.now()}-${qOrder}`,
         lessonId,
@@ -741,56 +876,20 @@ export async function parseDocxFile(
         difficulty: 'TH',
         order: qOrder,
         points: 1.0,
-        stem,
+        stem: tfResult.stem,
         media,
-        statements,
-        solution,
+        statements: tfResult.statements,
+        solution: ensureMathDelimiters(solution),
         tags: ['Đúng Sai', 'Nhập từ Word'],
-        confidenceScore,
+        confidenceScore: 0.98,
       });
+      continue;
     }
-    // CLASSIFY TYPE 1: MCQ (A, B, C, D)
-    else if (uniqueMcq.length >= 2) {
-      type = 'mcq';
+
+    // 2. Try MCQ (A, B, C, D with *A., *B., *C., *D.)
+    const mcqResult = extractMcqOptions(fullText);
+    if (mcqResult.isMcq) {
       mcqCount++;
-
-      const options: Option[] = [
-        { id: 'A', text: 'Phương án A' },
-        { id: 'B', text: 'Phương án B' },
-        { id: 'C', text: 'Phương án C' },
-        { id: 'D', text: 'Phương án D' },
-      ];
-
-      const rawOptions = stem.split(/(?:^|\n|\s{2,})([ABCD])[\s.:\-–]/);
-      if (rawOptions.length > 2) {
-        stem = ensureMathDelimiters(rawOptions[0].trim());
-        for (let i = 1; i < rawOptions.length; i += 2) {
-          const optLetter = rawOptions[i].toUpperCase();
-          const optContent = rawOptions[i + 1]?.trim() || '';
-          const targetOpt = options.find((o) => o.id === optLetter);
-          if (targetOpt && optContent) {
-            const mathified = ensureMathDelimiters(optContent);
-            targetOpt.text = mathified;
-            targetOpt.latex = mathified;
-          }
-        }
-      } else {
-        stem = ensureMathDelimiters(stem);
-      }
-
-      solution = ensureMathDelimiters(solution);
-
-      // Check for answer indication (e.g. "Chọn A", "Đáp án: B", "*D.")
-      const starMatch = fullText.match(/\*([ABCD])[\s.:\-–]/i);
-      const ansMatch = (fullText + ' ' + solution).match(/(?:Chọn|Đáp án|Key)\s*([ABCD])/i);
-      if (starMatch) {
-        correctAnswer = starMatch[1].toUpperCase();
-      } else if (ansMatch) {
-        correctAnswer = ansMatch[1].toUpperCase();
-      } else {
-        correctAnswer = 'A';
-      }
-
       questions.push({
         id: `q-docx-${Date.now()}-${qOrder}`,
         lessonId,
@@ -799,14 +898,15 @@ export async function parseDocxFile(
         difficulty: 'NB',
         order: qOrder,
         points: 0.25,
-        stem,
+        stem: mcqResult.stem,
         media,
-        options,
-        correctAnswer,
-        solution,
+        options: mcqResult.options,
+        correctAnswer: mcqResult.correctAnswer || 'A',
+        solution: ensureMathDelimiters(solution),
         tags: ['Trắc nghiệm', 'Nhập từ Word'],
-        confidenceScore,
+        confidenceScore: 0.98,
       });
+      continue;
     }
     // CLASSIFY TYPE 3: SHORT ANSWER OR ESSAY
     else if (/trả lời ngắn|kết quả là|nhập số/i.test(fullText)) {
