@@ -1,211 +1,368 @@
-import React, { useState } from 'react';
-import { useApp } from './context/AppContext';
-import { Header } from './components/layout/Header';
-import { SettingsModal } from './components/layout/SettingsModal';
-import { AuthModal } from './components/auth/AuthModal';
-import { AccountProvisionModal } from './components/admin/AccountProvisionModal';
-import { Banner } from './components/home/Banner';
-import { LessonGrid } from './components/home/LessonGrid';
-import { TheoryView } from './components/theory/TheoryView';
-import { ExamEngine } from './components/exam/ExamEngine';
-import { ExamResult } from './components/exam/ExamResult';
-import { MathArena } from './components/arena/MathArena';
-import { DocxImporter } from './components/admin/DocxImporter';
-import { StatsDashboard } from './components/stats/StatsDashboard';
-import { ClassManager } from './components/admin/ClassManager';
-import { VirtualCasioCalculator } from './components/common/VirtualCasioCalculator';
-import { FormulaHandbook } from './components/common/FormulaHandbook';
-import { CheckCircle2, AlertCircle, Info, XCircle, GraduationCap } from 'lucide-react';
+import React, { useState, useEffect } from "react";
+import { GradeLevel, UserRole, StudentProfile, Lesson, Chapter, Question } from "./types";
+import { CURRICULUM_DATA } from "./data/curriculumData";
+import { Navbar } from "./components/Navbar";
+import { StudentDashboard } from "./components/StudentDashboard";
+import { PracticeSession } from "./components/PracticeSession";
+import { TeacherDashboard } from "./components/TeacherDashboard";
+import { AdminPanel } from "./components/AdminPanel";
+import { AiMathAssistantModal } from "./components/AiMathAssistantModal";
+import { LessonDocxImportModal } from "./components/LessonDocxImportModal";
+import { AiMatrixExamGeneratorModal } from "./components/AiMatrixExamGeneratorModal";
+import { FloatingAiAssistant } from "./components/FloatingAiAssistant";
+import { ApiKeySettingsModal } from "./components/ApiKeySettingsModal";
+import { MathFunctionGrapherModal } from "./components/MathFunctionGrapherModal";
+import { OxyzViewerModal } from "./components/OxyzViewerModal";
+import { SpeedrunMathChallengeModal } from "./components/SpeedrunMathChallengeModal";
+import { getStoredApiKey } from "./utils/geminiClient";
 
-export const App: React.FC = () => {
-  const {
-    activeTab,
-    toast,
-    hideToast,
-    isCalculatorOpen,
-    setIsCalculatorOpen,
-    isHandbookOpen,
-    setIsHandbookOpen,
-  } = useApp();
+const DEFAULT_STUDENT: StudentProfile = {
+  id: "stu_1",
+  name: "Phan Quốc Cường",
+  studentCode: "THPT-2025-01",
+  grade: 12,
+  avatar: "https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=150&auto=format&fit=crop",
+  school: "THPT Chuyên Toán",
+  points: 250,
+  streakDays: 7,
+  progress: {
+    g12_c1_l1: {
+      lessonId: "g12_c1_l1",
+      bestScore: 85,
+      passed: true,
+      completedAt: new Date().toLocaleDateString(),
+      attemptsCount: 2,
+      tabSwitchViolations: 0,
+    },
+  },
+};
 
-  // Banner filter state
-  const [selectedSemester, setSelectedSemester] = useState<number | 'all'>('all');
-  const [selectedChapterId, setSelectedChapterId] = useState<string | 'all'>('all');
-  const [searchQuery, setSearchQuery] = useState<string>('');
-  const [statusFilter, setStatusFilter] = useState<'all' | 'completed' | 'in_progress' | 'locked'>('all');
+export default function App() {
+  const [chapters, setChapters] = useState<Chapter[]>(CURRICULUM_DATA);
+  const [currentGrade, setCurrentGrade] = useState<GradeLevel>(12);
+  const [currentRole, setCurrentRole] = useState<UserRole>("student");
+  const [activeLesson, setActiveLesson] = useState<Lesson | null>(null);
 
-  // Auth & Provisioning Modals State
-  const [isAuthOpen, setIsAuthOpen] = useState(false);
-  const [isAccountProvisionOpen, setIsAccountProvisionOpen] = useState(false);
+  // AI & Tool Modals
+  const [isAiModalOpen, setIsAiModalOpen] = useState<boolean>(false);
+  const [isApiKeyModalOpen, setIsApiKeyModalOpen] = useState<boolean>(false);
+  const [hasApiKey, setHasApiKey] = useState<boolean>(false);
+  const [isGrapherModalOpen, setIsGrapherModalOpen] = useState<boolean>(false);
+  const [isOxyzModalOpen, setIsOxyzModalOpen] = useState<boolean>(false);
+  const [isSpeedrunModalOpen, setIsSpeedrunModalOpen] = useState<boolean>(false);
 
-  const handleResetFilters = () => {
-    setSelectedSemester('all');
-    setSelectedChapterId('all');
-    setSearchQuery('');
-    setStatusFilter('all');
+  // Lesson-level Word/MathType import state
+  const [isDocxModalOpen, setIsDocxModalOpen] = useState<boolean>(false);
+  const [docxTargetLesson, setDocxTargetLesson] = useState<Lesson | null>(null);
+
+  // AI Matrix Exam generator state
+  const [isMatrixModalOpen, setIsMatrixModalOpen] = useState<boolean>(false);
+  const [matrixTargetLesson, setMatrixTargetLesson] = useState<Lesson | null>(null);
+
+  // Student Profile with persistent localStorage
+  const [student, setStudent] = useState<StudentProfile>(() => {
+    if (typeof window !== "undefined") {
+      try {
+        const saved = localStorage.getItem("STUDENT_PROFILE");
+        if (saved) {
+          return JSON.parse(saved);
+        }
+      } catch (e) {
+        console.warn("Could not load saved student profile:", e);
+      }
+    }
+    return DEFAULT_STUDENT;
+  });
+
+  // Check API Key on mount (Strictly compliant with AI_INSTRUCTIONS.md)
+  useEffect(() => {
+    const key = getStoredApiKey();
+    setHasApiKey(!!key);
+    if (!key) {
+      setIsApiKeyModalOpen(true);
+    }
+  }, []);
+
+  // Sync student profile to localStorage
+  useEffect(() => {
+    try {
+      localStorage.setItem("STUDENT_PROFILE", JSON.stringify(student));
+    } catch (e) {
+      console.warn("Could not save student profile:", e);
+    }
+  }, [student]);
+
+  // Handle lesson start
+  const handleSelectLesson = (lesson: Lesson) => {
+    setActiveLesson(lesson);
   };
 
+  // Handle opening Word MathType modal for a specific lesson
+  const handleOpenDocxImport = (lesson: Lesson) => {
+    setDocxTargetLesson(lesson);
+    setIsDocxModalOpen(true);
+  };
+
+  // Handle opening AI Matrix generator for a lesson
+  const handleOpenMatrixGenerator = (lesson?: Lesson) => {
+    setMatrixTargetLesson(lesson || null);
+    setIsMatrixModalOpen(true);
+  };
+
+  // Handle lesson completion
+  const handleCompleteLesson = (scorePercentage: number, tabViolations: number) => {
+    if (!activeLesson) return;
+
+    const isPassed = scorePercentage >= activeLesson.requiredPassPercentage;
+    const prevProg = student.progress[activeLesson.id];
+    const prevBest = prevProg?.bestScore || 0;
+
+    setStudent((prev) => ({
+      ...prev,
+      points: prev.points + (isPassed ? 50 : 10),
+      progress: {
+        ...prev.progress,
+        [activeLesson.id]: {
+          lessonId: activeLesson.id,
+          bestScore: Math.max(prevBest, scorePercentage),
+          passed: isPassed || !!prevProg?.passed,
+          completedAt: new Date().toLocaleDateString(),
+          attemptsCount: (prevProg?.attemptsCount || 0) + 1,
+          tabSwitchViolations: tabViolations,
+        },
+      },
+    }));
+  };
+
+  // Teacher / Admin: add new questions to a lesson
+  const handleAddQuestionsToLesson = (lessonId: string, newQuestions: Question[]) => {
+    setChapters((prev) =>
+      prev.map((chap) => ({
+        ...chap,
+        lessons: chap.lessons.map((l) => {
+          if (l.id === lessonId) {
+            return {
+              ...l,
+              questions: [...l.questions, ...newQuestions],
+            };
+          }
+          return l;
+        }),
+      }))
+    );
+  };
+
+  // Start exam directly with dynamically generated questions
+  const handleStartDynamicExam = (lesson: Lesson, generatedQuestions: Question[]) => {
+    const dynamicLesson: Lesson = {
+      ...lesson,
+      id: `dynamic_${lesson.id}_${Date.now()}`,
+      title: `${lesson.title} (Đề Ma trận AI)`,
+      questions: generatedQuestions,
+      durationMinutes: Math.max(15, Math.round(generatedQuestions.length * 3)),
+    };
+    setActiveLesson(dynamicLesson);
+  };
+
+  // Teacher / Admin: create new lesson
+  const handleCreateLesson = (chapterId: string, newLesson: Lesson) => {
+    setChapters((prev) =>
+      prev.map((chap) => {
+        if (chap.id === chapterId) {
+          return {
+            ...chap,
+            lessons: [...chap.lessons, newLesson],
+          };
+        }
+        return chap;
+      })
+    );
+  };
+
+  // Admin controls
+  const handleResetProgress = () => {
+    setStudent(DEFAULT_STUDENT);
+    localStorage.removeItem("STUDENT_PROFILE");
+    alert("Đã thiết lập lại toàn bộ tiến độ học tập!");
+  };
+
+  const handleUnlockAllLevels = () => {
+    const allProgress: Record<string, any> = {};
+    chapters.forEach((c) =>
+      c.lessons.forEach((l) => {
+        allProgress[l.id] = {
+          lessonId: l.id,
+          bestScore: 100,
+          passed: true,
+          completedAt: new Date().toLocaleDateString(),
+          attemptsCount: 1,
+          tabSwitchViolations: 0,
+        };
+      })
+    );
+    setStudent((prev) => ({
+      ...prev,
+      progress: allProgress,
+    }));
+    alert("Đã mở khóa tất cả các bài học ở mọi cấp độ (Chế độ Demo)!");
+  };
+
+  // Flatten all grade lessons for matrix generator lookup
+  const currentGradeLessons = chapters
+    .filter((c) => c.grade === currentGrade)
+    .flatMap((c) => c.lessons);
+
   return (
-    <div id="app-root" className="min-h-screen bg-slate-100/80 flex flex-col font-sans text-slate-900 antialiased selection:bg-teal-600 selection:text-white">
-      {/* Top Main Navigation Header */}
-      <Header
-        onOpenAuth={() => setIsAuthOpen(true)}
-        onOpenAccountProvision={() => setIsAccountProvisionOpen(true)}
+    <div className="min-h-screen bg-slate-50 flex flex-col font-sans text-slate-800">
+      {/* Navigation Header */}
+      <Navbar
+        currentGrade={currentGrade}
+        onSelectGrade={(g) => {
+          setCurrentGrade(g);
+          setActiveLesson(null);
+        }}
+        currentRole={currentRole}
+        onSelectRole={(r) => {
+          setCurrentRole(r);
+          setActiveLesson(null);
+        }}
+        student={student}
+        onOpenAiChat={() => setIsAiModalOpen(true)}
+        activeView={
+          activeLesson
+            ? "practice"
+            : currentRole === "teacher"
+            ? "teacher"
+            : currentRole === "admin"
+            ? "admin"
+            : "dashboard"
+        }
+        onNavigateHome={() => setActiveLesson(null)}
+        onOpenApiKeySettings={() => setIsApiKeyModalOpen(true)}
+        hasApiKey={hasApiKey}
+        onOpenGrapher={() => setIsGrapherModalOpen(true)}
+        onOpenOxyz={() => setIsOxyzModalOpen(true)}
+        onOpenSpeedrun={() => setIsSpeedrunModalOpen(true)}
       />
 
-      {/* Global Settings & Google Sheets Configuration Modal */}
-      <SettingsModal />
-
-      {/* Auth & Login Modal */}
-      <AuthModal
-        isOpen={isAuthOpen}
-        onClose={() => setIsAuthOpen(false)}
-      />
-
-      {/* Account Provisioning Modal (For Teachers & Admins) */}
-      <AccountProvisionModal
-        isOpen={isAccountProvisionOpen}
-        onClose={() => setIsAccountProvisionOpen(false)}
-      />
-
-      {/* Virtual Casio Calculator Modal */}
-      <VirtualCasioCalculator
-        isOpen={isCalculatorOpen}
-        onClose={() => setIsCalculatorOpen(false)}
-      />
-
-      {/* Quick Formula Handbook Modal */}
-      <FormulaHandbook
-        isOpen={isHandbookOpen}
-        onClose={() => setIsHandbookOpen(false)}
-      />
-
-      {/* Main Content Area */}
-      <main className="flex-1 max-w-7xl w-full mx-auto px-4 sm:px-6 lg:px-8 pt-6 pb-12">
-        {/* Tab 1: Curriculum Lessons & Banner */}
-        {activeTab === 'lessons' && (
-          <div className="space-y-6 animate-fadeIn">
-            <Banner
-              selectedSemester={selectedSemester}
-              setSelectedSemester={setSelectedSemester}
-              selectedChapterId={selectedChapterId}
-              setSelectedChapterId={setSelectedChapterId}
-              searchQuery={searchQuery}
-              setSearchQuery={setSearchQuery}
-              statusFilter={statusFilter}
-              setStatusFilter={setStatusFilter}
-            />
-            <LessonGrid
-              selectedSemester={selectedSemester}
-              selectedChapterId={selectedChapterId}
-              searchQuery={searchQuery}
-              statusFilter={statusFilter}
-              onResetFilters={handleResetFilters}
-            />
-          </div>
-        )}
-
-        {/* Tab 2: Theory, Worked Examples, 2D Graph Plotter & 3D Oxyz */}
-        {activeTab === 'theory' && (
-          <div className="animate-fadeIn">
-            <TheoryView />
-          </div>
-        )}
-
-        {/* Tab 3: Math Arena 1v1 (Gamification) */}
-        {activeTab === 'arena' && (
-          <div className="animate-fadeIn">
-            <MathArena />
-          </div>
-        )}
-
-        {/* Tab 4: Interactive Exam / Attempt Engine */}
-        {activeTab === 'exam' && (
-          <div className="animate-fadeIn">
-            <ExamEngine />
-          </div>
-        )}
-
-        {/* Tab 5: Exam Result & Diagnostic Review */}
-        {activeTab === 'exam-result' && (
-          <div className="animate-fadeIn">
-            <ExamResult />
-          </div>
-        )}
-
-        {/* Tab 6: Analytics & Stats Dashboard */}
-        {activeTab === 'stats' && (
-          <div className="animate-fadeIn">
-            <StatsDashboard />
-          </div>
-        )}
-
-        {/* Tab 7: DOCX Importer, Word Exporter & Moodle XML */}
-        {activeTab === 'docx-import' && (
-          <div className="animate-fadeIn">
-            <DocxImporter />
-          </div>
-        )}
-
-        {/* Tab 8: Class & Student Management */}
-        {activeTab === 'classes' && (
-          <div className="animate-fadeIn">
-            <ClassManager />
-          </div>
+      {/* Main Container */}
+      <main className="flex-1 max-w-7xl w-full mx-auto px-4 sm:px-6 lg:px-8 pt-6">
+        {/* If user is inside an active practice session */}
+        {activeLesson ? (
+          <PracticeSession
+            lesson={activeLesson}
+            onBack={() => setActiveLesson(null)}
+            onComplete={handleCompleteLesson}
+          />
+        ) : currentRole === "teacher" ? (
+          <TeacherDashboard
+            chapters={chapters}
+            onAddQuestionsToLesson={handleAddQuestionsToLesson}
+            onCreateLesson={handleCreateLesson}
+            currentGrade={currentGrade}
+          />
+        ) : currentRole === "admin" ? (
+          <AdminPanel
+            chapters={chapters}
+            student={student}
+            onResetProgress={handleResetProgress}
+            onUnlockAllLevels={handleUnlockAllLevels}
+          />
+        ) : (
+          <StudentDashboard
+            chapters={chapters}
+            currentGrade={currentGrade}
+            student={student}
+            onSelectLesson={handleSelectLesson}
+            onOpenAiAssistant={() => setIsAiModalOpen(true)}
+            onOpenDocxImport={handleOpenDocxImport}
+            onOpenMatrixGenerator={handleOpenMatrixGenerator}
+            onOpenGrapher={() => setIsGrapherModalOpen(true)}
+            onOpenOxyz={() => setIsOxyzModalOpen(true)}
+            onOpenSpeedrun={() => setIsSpeedrunModalOpen(true)}
+          />
         )}
       </main>
 
-      {/* Symmetrical Educational Footer */}
-      <footer className="bg-white border-t border-slate-200 mt-auto">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
-          <div className="flex flex-col md:flex-row items-center justify-between gap-4 text-xs text-slate-500">
-            <div className="flex items-center space-x-2 text-slate-700 font-semibold">
-              <GraduationCap className="w-4 h-4 text-teal-700" />
-              <span>Hệ Thống Tự Luyện Toán THPT 12 • Chương Trình GDPT 2018</span>
-            </div>
-            <div className="flex items-center space-x-4">
-              <span>Biên soạn: <strong className="text-teal-900">Thầy Phan Quốc Cường</strong></span>
-              <span>•</span>
-              <span>Nền tảng Tự Luyện &amp; Khảo Sát Năng Lực Trực Tuyến</span>
-            </div>
-          </div>
+      {/* Footer */}
+      <footer className="bg-white border-t border-slate-200 py-6 text-center text-xs text-slate-500">
+        <div className="max-w-7xl mx-auto px-4 space-y-1">
+          <p className="font-bold text-slate-700">
+            Hệ sinh thái Tự luyện Toán THPT (10, 11, 12) • Chương trình GDPT 2018
+          </p>
+          <p>
+            Giáo viên phụ trách chuyên môn: <strong>Phan Quốc Cường</strong> • Hỗ trợ MathJax, AI Gemini Fallback, Nạp đề Word MathType, Xuất Word .doc & AI Soạn đề Ma trận.
+          </p>
         </div>
       </footer>
 
-      {/* Toast Notification Container */}
-      {toast.show && (
-        <div
-          id="app-toast"
-          className="fixed bottom-6 right-6 z-50 max-w-md w-full bg-white border rounded-2xl shadow-2xl p-4 flex items-start space-x-3 animate-slideUp transition-all"
-          style={{
-            borderColor:
-              toast.type === 'success'
-                ? '#10b981'
-                : toast.type === 'error'
-                ? '#ef4444'
-                : toast.type === 'warning'
-                ? '#f59e0b'
-                : '#0d9488',
-          }}
-        >
-          {toast.type === 'success' && <CheckCircle2 className="w-5 h-5 text-emerald-600 flex-shrink-0 mt-0.5" />}
-          {toast.type === 'error' && <XCircle className="w-5 h-5 text-rose-600 flex-shrink-0 mt-0.5" />}
-          {toast.type === 'warning' && <AlertCircle className="w-5 h-5 text-amber-600 flex-shrink-0 mt-0.5" />}
-          {toast.type === 'info' && <Info className="w-5 h-5 text-teal-600 flex-shrink-0 mt-0.5" />}
+      {/* Mandatory / Settings Modal for Gemini API Key & Model selection (AI_INSTRUCTIONS.md) */}
+      <ApiKeySettingsModal
+        isOpen={isApiKeyModalOpen}
+        onClose={() => setIsApiKeyModalOpen(false)}
+        isMandatory={!hasApiKey}
+        onKeySaved={() => setHasApiKey(!!getStoredApiKey())}
+      />
 
-          <div className="flex-1 min-w-0">
-            <h4 className="text-xs font-bold text-slate-900 truncate">{toast.title}</h4>
-            <p className="text-xs text-slate-600 mt-0.5 leading-relaxed">{toast.message}</p>
-          </div>
+      {/* 2D Interactive Function Grapher Modal */}
+      <MathFunctionGrapherModal
+        isOpen={isGrapherModalOpen}
+        onClose={() => setIsGrapherModalOpen(false)}
+      />
 
-          <button
-            onClick={hideToast}
-            className="text-slate-400 hover:text-slate-600 text-xs font-bold p-1 rounded-lg hover:bg-slate-100 transition"
-          >
-            ✕
-          </button>
-        </div>
-      )}
+      {/* 3D Oxyz Space Coordinate Viewer Modal */}
+      <OxyzViewerModal
+        isOpen={isOxyzModalOpen}
+        onClose={() => setIsOxyzModalOpen(false)}
+      />
+
+      {/* 60s Speedrun Challenge Game Modal */}
+      <SpeedrunMathChallengeModal
+        isOpen={isSpeedrunModalOpen}
+        onClose={() => setIsSpeedrunModalOpen(false)}
+        onRewardPoints={(pts) =>
+          setStudent((prev) => ({
+            ...prev,
+            points: prev.points + pts,
+            streakDays: prev.streakDays + 1,
+          }))
+        }
+      />
+
+      {/* AI Assistant Chat Modal */}
+      <AiMathAssistantModal
+        isOpen={isAiModalOpen}
+        onClose={() => setIsAiModalOpen(false)}
+        student={student}
+      />
+
+      {/* Lesson-level Word / MathType Import Modal */}
+      <LessonDocxImportModal
+        isOpen={isDocxModalOpen}
+        onClose={() => {
+          setIsDocxModalOpen(false);
+          setDocxTargetLesson(null);
+        }}
+        lesson={docxTargetLesson}
+        onImportQuestions={handleAddQuestionsToLesson}
+      />
+
+      {/* AI Matrix Exam Generator Modal */}
+      <AiMatrixExamGeneratorModal
+        isOpen={isMatrixModalOpen}
+        onClose={() => {
+          setIsMatrixModalOpen(false);
+          setMatrixTargetLesson(null);
+        }}
+        lessons={currentGradeLessons}
+        currentGrade={currentGrade}
+        preSelectedLesson={matrixTargetLesson}
+        onSaveQuestionsToLesson={handleAddQuestionsToLesson}
+        onStartExamWithQuestions={handleStartDynamicExam}
+      />
+
+      {/* Floating AI Chat Assistant Icon at Bottom Right ("Trợ lý AI") */}
+      <FloatingAiAssistant student={student} currentGrade={currentGrade} />
     </div>
   );
-};
+}

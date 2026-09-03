@@ -3,20 +3,65 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Tự Luyện Toán 12 – CT GDPT 2018 | GV Phan Quốc Cường</title>
-    <meta name="description" content="Hệ thống tự luyện Toán 12 - Chương trình GDPT 2018. Giáo viên: Phan Quốc Cường. Hỗ trợ lý thuyết tương tác, 4 dạng câu hỏi, upload DOCX/OMML, chống chuyển tab, mở khóa 80% mastery và trợ lý AI Socratic." />
-    <meta property="og:title" content="Tự Luyện Toán 12 – CT GDPT 2018 | GV Phan Quốc Cường" />
-    <meta property="og:description" content="Hệ thống tự luyện Toán 12 - Chương trình GDPT 2018. Giáo viên: Phan Quốc Cường. Hỗ trợ lý thuyết tương tác, 4 dạng câu hỏi, upload DOCX/OMML, chống chuyển tab, mở khóa 80% mastery và trợ lý AI Socratic." />
+    <title>Tự luyện Toán THPT - Phan Quốc Cường</title>
+    <meta name="description" content="Hệ thống tự luyện Toán THPT (10, 11, 12) theo chương trình GDPT 2018 của giáo viên Phan Quốc Cường với công thức MathJax, chống gian lận, lộ trình phân tầng và trợ lý AI giải toán." />
+    <meta property="og:title" content="Tự luyện Toán THPT - Phan Quốc Cường" />
+    <meta property="og:description" content="Hệ thống tự luyện Toán THPT (10, 11, 12) theo chương trình GDPT 2018 của giáo viên Phan Quốc Cường với công thức MathJax, chống gian lận, lộ trình phân tầng và trợ lý AI giải toán." />
     <meta property="og:type" content="website" />
     <meta name="twitter:card" content="summary_large_image" />
-    
-    <!-- Google Fonts: Be Vietnam Pro & Inter -->
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Be+Vietnam+Pro:ital,wght@0,300;0,400;0,500;0,600;0,700;0,800;1,400&family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:ital,wght@0,300;0,400;0,500;0,600;0,700;0,800;1,400;1,600&family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet">
+    
+    <!-- MathJax Configuration -->
+    <script>
+      window.MathJax = {
+        tex: {
+          inlineMath: [['$', '$'], ['\\(', '\\)']],
+          displayMath: [['$$', '$$'], ['\\[', '\\]']],
+          processEscapes: true,
+          processEnvironments: true,
+          packages: {'[+]': ['noerrors', 'noundefined', 'ams']}
+        },
+        options: {
+          ignoreHtmlClass: 'tex2jax_ignore',
+          processHtmlClass: 'tex2jax_process'
+        },
+        loader: {
+          load: ['[tex]/noerrors', '[tex]/noundefined', '[tex]/ams']
+        },
+        startup: {
+          pageReady: () => {
+            return MathJax.startup.defaultPageReady();
+          }
+        }
+      };
+    </script>
+    <script id="MathJax-script" async src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js"></script>
+
+    <!-- MathLive for Interactive Visual Formula Editing -->
+    <script defer src="https://unpkg.com/mathlive"></script>
+    <style>
+      math-field {
+        font-size: 1.25rem;
+        padding: 0.625rem 0.875rem;
+        border-radius: 0.75rem;
+        background-color: #ffffff;
+        border: 2px solid #cbd5e1;
+        outline: none;
+        transition: border-color 0.2s, box-shadow 0.2s;
+        width: 100%;
+        display: block;
+      }
+      math-field:focus-within {
+        border-color: #0d9488;
+        box-shadow: 0 0 0 3px rgba(13, 148, 136, 0.2);
+      }
+    </style>
   </head>
-  <body class="bg-slate-50 text-slate-800 antialiased font-sans selection:bg-teal-100 selection:text-teal-900">
+  <body class="bg-slate-50 text-slate-800 antialiased font-sans selection:bg-blue-600 selection:text-white">
     <div id="root"></div>
     <script type="module" src="/src/main.tsx"></script>
   </body>
 </html>
+
