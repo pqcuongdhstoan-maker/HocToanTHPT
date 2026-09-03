@@ -61,6 +61,18 @@ export interface ExamMatrix {
   customRequirements?: string;
 }
 
+export interface PracticeTest {
+  id: string;
+  title: string; // "Đề luyện tập 1", "Đề luyện tập 2", etc.
+  description?: string;
+  durationMinutes: number; // 45, 90, ...
+  questions: Question[];
+  createdAt?: string;
+  requiredPassPercentage?: number;
+  bestScore?: number;
+  completed?: boolean;
+}
+
 export interface Lesson {
   id: string;
   chapterId: string;
@@ -72,6 +84,7 @@ export interface Lesson {
   grade: GradeLevel;
   requiredPassPercentage: number; // Default 80%
   questions: Question[];
+  practiceTests?: PracticeTest[]; // Danh sách nhiều đề tự luyện cho bài học này
   theorySummaryLatex?: string;
 }
 

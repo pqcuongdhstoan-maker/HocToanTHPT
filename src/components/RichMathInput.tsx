@@ -1,7 +1,7 @@
 import React, { useState, useRef } from "react";
 import { VisualFormulaEditorModal } from "./VisualFormulaEditorModal";
 import { MathRenderer } from "../utils/mathJaxHelper";
-import { Eye, EyeOff, Sparkles, Edit3 } from "lucide-react";
+import { Eye, EyeOff, Sparkles, Edit3, Image as ImageIcon } from "lucide-react";
 
 interface RichMathInputProps {
   value: string;
@@ -122,6 +122,30 @@ export const RichMathInput: React.FC<RichMathInputProps> = ({
           >
             $..$
           </button>
+
+          {/* Upload and insert image inline */}
+          <label
+            className="p-1.5 rounded-lg border border-slate-200 bg-slate-50 hover:bg-blue-50 text-slate-600 hover:text-blue-700 cursor-pointer text-xs font-medium transition-colors"
+            title="Chèn ảnh hình vẽ / sơ đồ vào nội dung"
+          >
+            <ImageIcon className="w-3.5 h-3.5" />
+            <input
+              type="file"
+              accept="image/*"
+              className="hidden"
+              onChange={(e) => {
+                const file = e.target.files?.[0];
+                if (!file) return;
+                const reader = new FileReader();
+                reader.onload = () => {
+                  const base64 = reader.result as string;
+                  const imgTag = `\n\n![hình vẽ](${base64})\n\n`;
+                  handleInsertFormula(imgTag, "", false);
+                };
+                reader.readAsDataURL(file);
+              }}
+            />
+          </label>
 
           {/* Preview Toggle */}
           <button

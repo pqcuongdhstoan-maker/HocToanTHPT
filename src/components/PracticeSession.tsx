@@ -6,6 +6,7 @@ import {
   QuestionPartType,
   AntiCheatEvent,
   ExamSessionState,
+  PracticeTest,
 } from "../types";
 import { MathRenderer } from "../utils/mathJaxHelper";
 import {
@@ -23,6 +24,11 @@ import {
   XCircle,
   Sparkles,
   HelpCircle,
+  ShieldCheck,
+  Award,
+  RefreshCw,
+  FileCheck,
+  ChevronRight,
   Send,
   Upload,
   Bot,
@@ -41,21 +47,30 @@ import {
 
 interface PracticeSessionProps {
   lesson: Lesson;
+  practiceTest?: PracticeTest;
   onBack: () => void;
-  onComplete: (scorePercentage: number, tabViolations: number) => void;
+  onComplete: (scorePercentage: number, tabViolations: number, testId?: string) => void;
 }
 
 export const PracticeSession: React.FC<PracticeSessionProps> = ({
   lesson,
+  practiceTest,
   onBack,
   onComplete,
 }) => {
+  // Determine questions and duration based on practiceTest or lesson
+  const testQuestions =
+    practiceTest?.questions && practiceTest.questions.length > 0
+      ? practiceTest.questions
+      : lesson.questions;
+  const initialDurationSeconds = (practiceTest?.durationMinutes || lesson.durationMinutes) * 60;
+
   // Session State
   const [activeTab, setActiveTab] = useState<"ALL" | QuestionPartType>("ALL");
   const [answers, setAnswers] = useState<Record<string, any>>({});
   const [isSubmitted, setIsSubmitted] = useState<boolean>(false);
   const [isAutoSubmittedDueToCheat, setIsAutoSubmittedDueToCheat] = useState<boolean>(false);
-  const [timeRemaining, setTimeRemaining] = useState<number>(lesson.durationMinutes * 60);
+  const [timeRemaining, setTimeRemaining] = useState<number>(initialDurationSeconds);
 
   // Anti-Cheat State
   const [tabSwitches, setTabSwitches] = useState<number>(0);
@@ -181,7 +196,7 @@ export const PracticeSession: React.FC<PracticeSessionProps> = ({
     let earnedPoints = 0;
     let totalMaxPoints = 0;
 
-    lesson.questions.forEach((q) => {
+    testQuestions.forEach((q) => {
       totalMaxPoints += q.points;
       const userAns = answers[q.id];
 
@@ -253,7 +268,7 @@ export const PracticeSession: React.FC<PracticeSessionProps> = ({
       }
     }
 
-    onComplete(result.percentage, tabSwitches);
+    onComplete(result.percentage, tabSwitches, practiceTest?.id);
   };
 
   // Request AI Explanation for a question (Direct Client-side with Fallback)
@@ -378,7 +393,7 @@ export const PracticeSession: React.FC<PracticeSessionProps> = ({
   const passed = percentage >= lesson.requiredPassPercentage;
 
   // Filter questions by active tab
-  const displayedQuestions = lesson.questions.filter((q) => {
+  const displayedQuestions = testQuestions.filter((q) => {
     if (activeTab === "ALL") return true;
     return q.partType === activeTab;
   });
@@ -397,10 +412,10 @@ export const PracticeSession: React.FC<PracticeSessionProps> = ({
           </button>
           <div>
             <h1 className="text-base sm:text-lg font-black text-slate-900 line-clamp-1">
-              {lesson.title}
+              {lesson.title} {practiceTest ? `• ${practiceTest.title}` : ""}
             </h1>
             <p className="text-xs text-slate-500 font-medium">
-              Chuẩn 4 phần GDPT 2018 • Mục tiêu: $\ge {lesson.requiredPassPercentage}\%$
+              Chuẩn 4 phần GDPT 2018 • Mục tiêu: $\ge {lesson.requiredPassPercentage}\%$ • {testQuestions.length} câu
             </p>
           </div>
         </div>
@@ -687,6 +702,17 @@ export const PracticeSession: React.FC<PracticeSessionProps> = ({
               <div className="text-slate-900 text-sm sm:text-base font-medium leading-relaxed">
                 <MathRenderer content={q.content} />
               </div>
+
+              {/* Question Image (Hình vẽ minh họa, đồ thị) */}
+              {q.imageUrl && (
+                <div className="my-3 text-center">
+                  <img
+                    src={q.imageUrl}
+                    alt="Hình vẽ minh họa đề bài"
+                    className="max-h-64 sm:max-h-80 mx-auto rounded-2xl border border-slate-200 shadow-xs object-contain bg-slate-50 p-2"
+                  />
+                </div>
+              )}
 
               {/* ================= PART I: Multiple Choice Options ================= */}
               {q.partType === "PART_I" && q.options && (

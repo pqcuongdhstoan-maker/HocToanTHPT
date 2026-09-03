@@ -1,7 +1,6 @@
 import React from "react";
 import { Chapter, Lesson, StudentProfile, GradeLevel } from "../types";
 import { MathRenderer } from "../utils/mathJaxHelper";
-import { HomeAiChatBox } from "./HomeAiChatBox";
 import {
   Lock,
   Unlock,
@@ -167,21 +166,7 @@ export const StudentDashboard: React.FC<StudentDashboardProps> = ({
         </div>
       </div>
 
-      {/* Embedded AI Chat Box directly on Home Page */}
-      <div className="space-y-2">
-        <div className="flex items-center justify-between">
-          <div className="flex items-center gap-2">
-            <div className="w-2.5 h-2.5 rounded-full bg-emerald-500 animate-pulse" />
-            <span className="text-xs font-extrabold uppercase tracking-wider text-slate-700">
-              Trợ lý Sư phạm Toán trực tiếp • Thầy Phan Quốc Cường AI
-            </span>
-          </div>
-          <span className="text-[11px] text-slate-400 font-medium hidden sm:inline">
-            Hỗ trợ công thức LaTeX $...$, giải thích từng bước bám sát SGK
-          </span>
-        </div>
-        <HomeAiChatBox student={student} currentGrade={currentGrade} />
-      </div>
+
 
       {/* Structure Guide: 4 Parts of GDPT 2018 */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-3.5">
@@ -508,20 +493,23 @@ export const StudentDashboard: React.FC<StudentDashboardProps> = ({
                       <div className="mt-4 pt-3 border-t border-slate-100 flex items-center justify-between">
                         <div className="flex items-center gap-1 text-[11px] text-slate-500">
                           <BookOpen className="w-3.5 h-3.5 text-slate-400" />
-                          <span>4 phần thi • {lesson.questions.length} câu hỏi</span>
+                          <span>{lesson.practiceTests?.length || 2} đề tự luyện • {lesson.questions.length} câu</span>
                         </div>
 
                         {unlocked ? (
                           <button
                             id={`start_lesson_btn_${lesson.id}`}
-                            onClick={() => onSelectLesson(lesson)}
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              onSelectLesson(lesson);
+                            }}
                             className={`inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-xl text-xs font-bold transition-all active:scale-95 ${
                               hasPassed
                                 ? "bg-emerald-600 hover:bg-emerald-700 text-white shadow-xs"
                                 : "bg-blue-600 hover:bg-blue-700 text-white shadow-xs"
                             }`}
                           >
-                            <span>{hasPassed ? "Luyện tập lại" : "Làm bài ngay"}</span>
+                            <span>Xem các đề luyện</span>
                             <ChevronRight className="w-3.5 h-3.5" />
                           </button>
                         ) : (

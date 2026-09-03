@@ -1,5 +1,5 @@
-import React, { useState } from "react";
-import { Lesson, Question, CognitiveLevel, QuestionPartType } from "../types";
+import React, { useState, useEffect } from "react";
+import { Lesson, Question, CognitiveLevel, QuestionPartType, PracticeTest } from "../types";
 import { parseDocxFile, parseExamQuestionsFromText } from "../utils/docxParser";
 import { MathRenderer } from "../utils/mathJaxHelper";
 import { parseMathTypeDocAi, parsePdfExamAi } from "../utils/geminiClient";
@@ -27,26 +27,44 @@ import {
   Copy,
   ChevronDown,
   ChevronUp,
+  Image as ImageIcon,
 } from "lucide-react";
 
 interface LessonDocxImportModalProps {
   isOpen: boolean;
   onClose: () => void;
   lesson: Lesson | null;
-  onImportQuestions: (lessonId: string, questions: Question[]) => void;
+  targetTest?: PracticeTest | null;
+  onImportQuestions: (lessonId: string, questions: Question[], testId?: string) => void;
 }
 
 export const LessonDocxImportModal: React.FC<LessonDocxImportModalProps> = ({
   isOpen,
   onClose,
   lesson,
+  targetTest,
   onImportQuestions,
 }) => {
   if (!isOpen || !lesson) return null;
 
   const [rawText, setRawText] = useState<string>("");
   const [fileName, setFileName] = useState<string>("");
-  const [parsedQuestions, setParsedQuestions] = useState<Question[]>([]);
+  const [parsedQuestions, setParsedQuestions] = useState<Question[]>(() => {
+    if (targetTest?.questions && targetTest.questions.length > 0) {
+      return targetTest.questions;
+    }
+    return lesson.questions || [];
+  });
+
+  useEffect(() => {
+    if (targetTest?.questions && targetTest.questions.length > 0) {
+      setParsedQuestions(targetTest.questions);
+    } else if (lesson.questions && lesson.questions.length > 0) {
+      setParsedQuestions(lesson.questions);
+    } else {
+      setParsedQuestions([]);
+    }
+  }, [lesson.id, targetTest?.id]);
   const [isProcessing, setIsProcessing] = useState<boolean>(false);
   const [isAiClassifying, setIsAiClassifying] = useState<boolean>(false);
   const [statusMsg, setStatusMsg] = useState<{ type: "success" | "error" | "info"; text: string } | null>(null);
@@ -305,15 +323,19 @@ export const LessonDocxImportModal: React.FC<LessonDocxImportModalProps> = ({
     setParsedQuestions((prev) => [...prev.slice(0, index + 1), duplicated, ...prev.slice(index + 1)]);
   };
 
-  // Commit questions to lesson
+  // Commit questions to lesson / test
   const handleConfirmImport = () => {
     if (parsedQuestions.length === 0) {
-      alert("Chưa có câu hỏi nào để nạp vào bài học!");
+      alert("Chưa có câu hỏi nào để nạp!");
       return;
     }
 
-    onImportQuestions(lesson.id, parsedQuestions);
-    alert(`Đã thêm thành công ${parsedQuestions.length} câu hỏi vào "${lesson.title}"!`);
+    onImportQuestions(lesson.id, parsedQuestions, targetTest?.id);
+    alert(
+      `Đã lưu thành công ${parsedQuestions.length} câu hỏi vào "${lesson.title}${
+        targetTest ? ` - ${targetTest.title}` : ""
+      }"!`
+    );
     onClose();
   };
 
@@ -357,11 +379,13 @@ export const LessonDocxImportModal: React.FC<LessonDocxImportModalProps> = ({
             <div>
               <div className="flex items-center gap-2">
                 <span className="text-[11px] font-bold uppercase tracking-wider px-2 py-0.5 rounded bg-blue-500/40 text-blue-100 border border-blue-400/30">
-                  Nạp đề từng bài học (Word & PDF)
+                  {targetTest ? `Nạp & Soạn: ${targetTest.title}` : "Nạp đề từng bài học (Word & PDF)"}
                 </span>
                 <span className="text-xs text-blue-200 font-medium">Toán {lesson.grade}</span>
               </div>
-              <h2 className="text-base sm:text-lg font-black tracking-tight">{lesson.title}</h2>
+              <h2 className="text-base sm:text-lg font-black tracking-tight">
+                {lesson.title} {targetTest ? `(${targetTest.title})` : ""}
+              </h2>
             </div>
           </div>
 
@@ -756,6 +780,17 @@ export const LessonDocxImportModal: React.FC<LessonDocxImportModalProps> = ({
                         <MathRenderer math={q.content} />
                       </div>
 
+                      {/* Render question image if present */}
+                      {q.imageUrl && (
+                        <div className="my-2.5 text-center">
+                          <img
+                            src={q.imageUrl}
+                            alt="Hình minh họa đề bài"
+                            className="max-h-56 mx-auto rounded-xl border border-slate-200 shadow-xs object-contain bg-slate-50 p-1"
+                          />
+                        </div>
+                      )}
+
                       {/* Part I: Options */}
                       {q.partType === "PART_I" && q.options && (
                         <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 pt-1">
@@ -906,6 +941,13 @@ export const LessonDocxImportModal: React.FC<LessonDocxImportModalProps> = ({
                           <div className="text-xs sm:text-sm font-semibold text-slate-800">
                             <MathRenderer math={q.content} />
                           </div>
+                          {q.imageUrl && (
+                            <img
+                              src={q.imageUrl}
+                              alt="Hình minh họa"
+                              className="max-h-24 rounded-lg border border-slate-200 object-contain my-1 bg-slate-50 p-1"
+                            />
+                          )}
                           {q.partType === "PART_I" && q.options && (
                             <div className="grid grid-cols-2 gap-2 text-xs">
                               {q.options.map((opt) => (
@@ -967,6 +1009,54 @@ export const LessonDocxImportModal: React.FC<LessonDocxImportModalProps> = ({
                             rows={3}
                             placeholder="Nhập nội dung đề bài (Bấm nút '∑ Chèn công thức' ở trên để chèn phân số, căn, tích phân...)"
                           />
+
+                          {/* Image Upload for this question */}
+                          <div className="p-3 bg-slate-50 rounded-2xl border border-slate-200 space-y-2">
+                            <div className="flex items-center justify-between">
+                              <label className="text-xs font-bold text-slate-700 flex items-center gap-1.5">
+                                <ImageIcon className="w-3.5 h-3.5 text-blue-600" />
+                                <span>Hình vẽ / Đồ thị minh họa câu {idx + 1} (Upload ảnh):</span>
+                              </label>
+                              {q.imageUrl && (
+                                <button
+                                  type="button"
+                                  onClick={() => handleUpdateQuestion(idx, { imageUrl: undefined })}
+                                  className="text-[11px] text-rose-600 hover:text-rose-800 font-bold"
+                                >
+                                  ✕ Xóa ảnh
+                                </button>
+                              )}
+                            </div>
+
+                            {q.imageUrl ? (
+                              <div className="p-2 bg-white rounded-xl border border-slate-200 text-center">
+                                <img
+                                  src={q.imageUrl}
+                                  alt="Hình vẽ minh họa"
+                                  className="max-h-52 mx-auto rounded-lg object-contain"
+                                />
+                              </div>
+                            ) : (
+                              <label className="inline-flex items-center gap-2 px-3 py-2 bg-white hover:bg-blue-50 border border-dashed border-blue-300 rounded-xl text-xs font-bold text-blue-700 cursor-pointer transition-colors shadow-2xs active:scale-95">
+                                <Upload className="w-3.5 h-3.5 text-blue-600" />
+                                <span>Tải ảnh đồ thị / hình vẽ từ máy tính (.png, .jpg, .svg)</span>
+                                <input
+                                  type="file"
+                                  accept="image/*"
+                                  className="hidden"
+                                  onChange={(e) => {
+                                    const file = e.target.files?.[0];
+                                    if (!file) return;
+                                    const reader = new FileReader();
+                                    reader.onload = () => {
+                                      handleUpdateQuestion(idx, { imageUrl: reader.result as string });
+                                    };
+                                    reader.readAsDataURL(file);
+                                  }}
+                                />
+                              </label>
+                            )}
+                          </div>
 
                           {/* PART I: 4 Options Inputs */}
                           {q.partType === "PART_I" && (

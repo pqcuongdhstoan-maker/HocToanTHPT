@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from "react";
-import { GradeLevel, UserRole, StudentProfile, Lesson, Chapter, Question } from "./types";
+import { GradeLevel, UserRole, StudentProfile, Lesson, Chapter, Question, PracticeTest } from "./types";
 import { CURRICULUM_DATA } from "./data/curriculumData";
 import { Navbar } from "./components/Navbar";
 import { StudentDashboard } from "./components/StudentDashboard";
@@ -8,6 +8,7 @@ import { TeacherDashboard } from "./components/TeacherDashboard";
 import { AdminPanel } from "./components/AdminPanel";
 import { AiMathAssistantModal } from "./components/AiMathAssistantModal";
 import { LessonDocxImportModal } from "./components/LessonDocxImportModal";
+import { LessonPracticeTestsModal } from "./components/LessonPracticeTestsModal";
 import { AiMatrixExamGeneratorModal } from "./components/AiMatrixExamGeneratorModal";
 import { FloatingAiAssistant } from "./components/FloatingAiAssistant";
 import { ApiKeySettingsModal } from "./components/ApiKeySettingsModal";
@@ -42,6 +43,12 @@ export default function App() {
   const [currentGrade, setCurrentGrade] = useState<GradeLevel>(12);
   const [currentRole, setCurrentRole] = useState<UserRole>("student");
   const [activeLesson, setActiveLesson] = useState<Lesson | null>(null);
+
+  // Multi-Practice Tests state per lesson
+  const [isTestsModalOpen, setIsTestsModalOpen] = useState<boolean>(false);
+  const [targetLessonForTests, setTargetLessonForTests] = useState<Lesson | null>(null);
+  const [activePracticeTest, setActivePracticeTest] = useState<PracticeTest | null>(null);
+  const [docxTargetTest, setDocxTargetTest] = useState<PracticeTest | null>(null);
 
   // AI & Tool Modals
   const [isAiModalOpen, setIsAiModalOpen] = useState<boolean>(false);
@@ -92,15 +99,89 @@ export default function App() {
     }
   }, [student]);
 
-  // Handle lesson start
+  // Handle lesson click -> opens multi-practice tests modal
   const handleSelectLesson = (lesson: Lesson) => {
-    setActiveLesson(lesson);
+    setTargetLessonForTests(lesson);
+    setIsTestsModalOpen(true);
   };
 
-  // Handle opening Word MathType modal for a specific lesson
-  const handleOpenDocxImport = (lesson: Lesson) => {
+  // Start practicing a specific test
+  const handleStartPracticeTest = (lesson: Lesson, test: PracticeTest) => {
+    setActiveLesson(lesson);
+    setActivePracticeTest(test);
+    setIsTestsModalOpen(false);
+  };
+
+  // Handle opening Word MathType modal for a specific lesson or test
+  const handleOpenDocxImport = (lesson: Lesson, test?: PracticeTest) => {
     setDocxTargetLesson(lesson);
+    setDocxTargetTest(test || null);
     setIsDocxModalOpen(true);
+  };
+
+  // Manage tests per lesson
+  const handleAddTestToLesson = (lessonId: string, newTest: PracticeTest) => {
+    setChapters((prev) =>
+      prev.map((c) => ({
+        ...c,
+        lessons: c.lessons.map((l) => {
+          if (l.id === lessonId) {
+            const currentTests =
+              l.practiceTests && l.practiceTests.length > 0
+                ? l.practiceTests
+                : [
+                    {
+                      id: "test_1",
+                      title: "Đề luyện tập 1 (Tiêu chuẩn)",
+                      durationMinutes: l.durationMinutes,
+                      questions: l.questions,
+                    },
+                    {
+                      id: "test_2",
+                      title: "Đề luyện tập 2 (Phát triển năng lực)",
+                      durationMinutes: l.durationMinutes,
+                      questions: [],
+                    },
+                  ];
+            return { ...l, practiceTests: [...currentTests, newTest] };
+          }
+          return l;
+        }),
+      }))
+    );
+  };
+
+  const handleDeleteTestFromLesson = (lessonId: string, testId: string) => {
+    setChapters((prev) =>
+      prev.map((c) => ({
+        ...c,
+        lessons: c.lessons.map((l) => {
+          if (l.id === lessonId) {
+            const tests = l.practiceTests || [];
+            return { ...l, practiceTests: tests.filter((t) => t.id !== testId) };
+          }
+          return l;
+        }),
+      }))
+    );
+  };
+
+  const handleUpdateTestInLesson = (lessonId: string, updatedTest: PracticeTest) => {
+    setChapters((prev) =>
+      prev.map((c) => ({
+        ...c,
+        lessons: c.lessons.map((l) => {
+          if (l.id === lessonId) {
+            const tests = l.practiceTests || [];
+            return {
+              ...l,
+              practiceTests: tests.map((t) => (t.id === updatedTest.id ? updatedTest : t)),
+            };
+          }
+          return l;
+        }),
+      }))
+    );
   };
 
   // Handle opening AI Matrix generator for a lesson
@@ -134,13 +215,44 @@ export default function App() {
     }));
   };
 
-  // Teacher / Admin: add new questions to a lesson
-  const handleAddQuestionsToLesson = (lessonId: string, newQuestions: Question[]) => {
+  // Teacher / Admin: add new questions to a lesson or specific test
+  const handleAddQuestionsToLesson = (
+    lessonId: string,
+    newQuestions: Question[],
+    testId?: string
+  ) => {
     setChapters((prev) =>
       prev.map((chap) => ({
         ...chap,
         lessons: chap.lessons.map((l) => {
           if (l.id === lessonId) {
+            if (testId) {
+              const currentTests =
+                l.practiceTests && l.practiceTests.length > 0
+                  ? l.practiceTests
+                  : [
+                      {
+                        id: "test_1",
+                        title: "Đề luyện tập 1 (Tiêu chuẩn)",
+                        durationMinutes: l.durationMinutes,
+                        questions: l.questions,
+                      },
+                      {
+                        id: "test_2",
+                        title: "Đề luyện tập 2 (Phát triển năng lực)",
+                        durationMinutes: l.durationMinutes,
+                        questions: [],
+                      },
+                    ];
+              const updatedTests = currentTests.map((t) =>
+                t.id === testId ? { ...t, questions: newQuestions } : t
+              );
+              return {
+                ...l,
+                practiceTests: updatedTests,
+                questions: testId === "test_1" ? newQuestions : l.questions,
+              };
+            }
             return {
               ...l,
               questions: [...l.questions, ...newQuestions],
@@ -251,7 +363,11 @@ export default function App() {
         {activeLesson ? (
           <PracticeSession
             lesson={activeLesson}
-            onBack={() => setActiveLesson(null)}
+            practiceTest={activePracticeTest || undefined}
+            onBack={() => {
+              setActiveLesson(null);
+              setActivePracticeTest(null);
+            }}
             onComplete={handleCompleteLesson}
           />
         ) : currentRole === "teacher" ? (
@@ -336,15 +452,37 @@ export default function App() {
         student={student}
       />
 
-      {/* Lesson-level Word / MathType Import Modal */}
+      {/* Lesson-level Word / MathType & PDF Import Modal */}
       <LessonDocxImportModal
         isOpen={isDocxModalOpen}
         onClose={() => {
           setIsDocxModalOpen(false);
           setDocxTargetLesson(null);
+          setDocxTargetTest(null);
         }}
         lesson={docxTargetLesson}
+        targetTest={docxTargetTest}
         onImportQuestions={handleAddQuestionsToLesson}
+      />
+
+      {/* Lesson-level Multi-Practice Tests Modal */}
+      <LessonPracticeTestsModal
+        isOpen={isTestsModalOpen}
+        onClose={() => {
+          setIsTestsModalOpen(false);
+          setTargetLessonForTests(null);
+        }}
+        lesson={
+          targetLessonForTests
+            ? chapters.flatMap((c) => c.lessons).find((l) => l.id === targetLessonForTests.id) ||
+              targetLessonForTests
+            : null
+        }
+        onStartPractice={handleStartPracticeTest}
+        onOpenImport={handleOpenDocxImport}
+        onAddTest={handleAddTestToLesson}
+        onDeleteTest={handleDeleteTestFromLesson}
+        onUpdateTest={handleUpdateTestInLesson}
       />
 
       {/* AI Matrix Exam Generator Modal */}

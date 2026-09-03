@@ -3,11 +3,19 @@
 
 export const SUPPORTED_MODELS = [
   {
+    id: "gemini-2.5-flash",
+    name: "Gemini 2.5 Flash",
+    tag: "Siêu tốc độ (Khuyên dùng)",
+    description: "Tốc độ phản hồi cực nhanh (~1.5s), tối ưu hóa cho giải toán và LaTeX.",
+    badge: "Mặc định (Siêu tốc)",
+    color: "emerald",
+  },
+  {
     id: "gemini-3-flash-preview",
     name: "Gemini 3 Flash",
-    tag: "Khuyên dùng (Default)",
-    description: "Tốc độ phản hồi cực nhanh, tối ưu hóa cho suy luận Toán và LaTeX.",
-    badge: "Mặc định",
+    tag: "Khuyên dùng",
+    description: "Tốc độ phản hồi nhanh, tối ưu hóa cho suy luận Toán và LaTeX.",
+    badge: "Flash",
     color: "blue",
   },
   {
@@ -17,14 +25,6 @@ export const SUPPORTED_MODELS = [
     description: "Khả năng phân tích ma trận phức tạp và bài toán Vận dụng cao (VDC).",
     badge: "Mạnh mẽ",
     color: "indigo",
-  },
-  {
-    id: "gemini-2.5-flash",
-    name: "Gemini 2.5 Flash",
-    tag: "Dự phòng",
-    description: "Độ ổn định cao, tiết kiệm quota khi hệ thống chính bận.",
-    badge: "Dự phòng",
-    color: "purple",
   },
 ] as const;
 
@@ -49,12 +49,12 @@ export function setStoredApiKey(key: string): void {
 }
 
 export function getStoredModel(): SupportedModelId {
-  if (typeof window === "undefined") return "gemini-3-flash-preview";
+  if (typeof window === "undefined") return "gemini-2.5-flash";
   const stored = localStorage.getItem(STORAGE_KEY_MODEL);
   if (stored && SUPPORTED_MODELS.some((m) => m.id === stored)) {
     return stored as SupportedModelId;
   }
-  return "gemini-3-flash-preview";
+  return "gemini-2.5-flash";
 }
 
 export function setStoredModel(model: SupportedModelId): void {
@@ -63,11 +63,13 @@ export function setStoredModel(model: SupportedModelId): void {
 }
 
 // Build fallback ladder prioritizing the selected model
-export function getFallbackLadder(selectedModel: SupportedModelId): SupportedModelId[] {
-  const defaultList: SupportedModelId[] = [
+export function getFallbackLadder(selectedModel: SupportedModelId): string[] {
+  const defaultList: string[] = [
+    "gemini-2.5-flash",
+    "gemini-2.0-flash",
+    "gemini-1.5-flash",
     "gemini-3-flash-preview",
     "gemini-3-pro-preview",
-    "gemini-2.5-flash",
   ];
   return [selectedModel, ...defaultList.filter((m) => m !== selectedModel)];
 }
@@ -127,7 +129,8 @@ export async function callGeminiWithFallback(
       const bodyPayload: Record<string, any> = {
         contents: requestContents || [],
         generationConfig: {
-          temperature: params.temperature ?? 0.3,
+          temperature: params.temperature ?? 0.2,
+          maxOutputTokens: 2048,
         },
       };
 
@@ -141,37 +144,48 @@ export async function callGeminiWithFallback(
         bodyPayload.generationConfig.responseMimeType = "application/json";
       }
 
-      const res = await fetch(url, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify(bodyPayload),
-      });
+      // Fast timeout controller (10s max per model attempt to prevent hanging)
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 10000);
 
-      if (!res.ok) {
-        const errorData = await res.json().catch(() => ({}));
-        const errMsg =
-          errorData?.error?.message ||
-          `HTTP ${res.status} (${res.statusText || "Lỗi yêu cầu"})`;
-        const errCode = errorData?.error?.code || res.status;
-        const errStatus = errorData?.error?.status || "";
+      try {
+        const res = await fetch(url, {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify(bodyPayload),
+          signal: controller.signal,
+        });
 
-        throw new Error(`[${errCode} ${errStatus}] ${errMsg}`);
+        clearTimeout(timeoutId);
+
+        if (!res.ok) {
+          const errorData = await res.json().catch(() => ({}));
+          const errMsg =
+            errorData?.error?.message ||
+            `HTTP ${res.status} (${res.statusText || "Lỗi yêu cầu"})`;
+          const errCode = errorData?.error?.code || res.status;
+          const errStatus = errorData?.error?.status || "";
+
+          throw new Error(`[${errCode} ${errStatus}] ${errMsg}`);
+        }
+
+        const data = await res.json();
+        const generatedText =
+          data?.candidates?.[0]?.content?.parts?.[0]?.text || "";
+
+        return {
+          text: generatedText,
+          modelUsed: model as any,
+        };
+      } finally {
+        clearTimeout(timeoutId);
       }
-
-      const data = await res.json();
-      const generatedText =
-        data?.candidates?.[0]?.content?.parts?.[0]?.text || "";
-
-      return {
-        text: generatedText,
-        modelUsed: model,
-      };
     } catch (err: any) {
       console.warn(`Model ${model} failed, attempting next model in ladder:`, err);
       lastError = err;
-      // Continue to next model in ladder
+      // Continue to next model in ladder immediately
     }
   }
 
