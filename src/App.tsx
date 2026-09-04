@@ -75,6 +75,7 @@ export default function App() {
   const [isUserManagementModalOpen, setIsUserManagementModalOpen] = useState<boolean>(false);
   const [isLoginModalOpen, setIsLoginModalOpen] = useState<boolean>(false);
   const [isLogoutConfirm, setIsLogoutConfirm] = useState<boolean>(false);
+  const [loginInitialRole, setLoginInitialRole] = useState<UserRole>("student");
 
 
   // Lesson-level Word/MathType import state
@@ -370,6 +371,11 @@ export default function App() {
         onNavigateHome={() => setActiveLesson(null)}
         onOpenApiKeySettings={() => setIsApiKeyModalOpen(true)}
         hasApiKey={hasApiKey}
+        onOpenLogin={(role) => {
+          setLoginInitialRole(role);
+          setIsLogoutConfirm(false);
+          setIsLoginModalOpen(true);
+        }}
         /* 7 Tabs from the requested screenshot */
         onOpenGeminiHub={() => setIsAiModalOpen(true)}
         onOpenMarkdownTable={() => setIsMarkdownTableModalOpen(true)}
@@ -575,6 +581,7 @@ export default function App() {
         isOpen={isLoginModalOpen}
         onClose={() => setIsLoginModalOpen(false)}
         isLogoutConfirm={isLogoutConfirm}
+        initialRole={loginInitialRole}
         currentUserEmail={student.email || "zalo2299k@gmail.com"}
         onConfirmLogout={() => {
           setIsLogoutConfirm(false);

@@ -1,17 +1,11 @@
-import React, { useState } from "react";
-import { UserRole, StudentProfile } from "../types";
+import React, { useState, useEffect } from "react";
+import { UserRole } from "../types";
 import {
   X,
   LogOut,
-  LogIn,
-  Mail,
-  Lock,
-  User,
-  Shield,
   GraduationCap,
-  BookOpen,
-  CheckCircle2,
-  AlertCircle,
+  Shield,
+  ArrowRight,
 } from "lucide-react";
 
 interface LoginModalProps {
@@ -19,6 +13,7 @@ interface LoginModalProps {
   onClose: () => void;
   isLogoutConfirm?: boolean;
   currentUserEmail?: string;
+  initialRole?: UserRole;
   onConfirmLogout: () => void;
   onLoginSuccess: (email: string, role: UserRole) => void;
 }
@@ -28,24 +23,52 @@ export const LoginModal: React.FC<LoginModalProps> = ({
   onClose,
   isLogoutConfirm = false,
   currentUserEmail = "zalo2299k@gmail.com",
+  initialRole = "student",
   onConfirmLogout,
   onLoginSuccess,
 }) => {
-  const [email, setEmail] = useState<string>(currentUserEmail || "zalo2299k@gmail.com");
-  const [password, setPassword] = useState<string>("••••••••");
-  const [selectedRole, setSelectedRole] = useState<UserRole>("student");
+  const [selectedRole, setSelectedRole] = useState<UserRole>(initialRole || "student");
+  const [username, setUsername] = useState<string>("");
+  const [password, setPassword] = useState<string>("");
+
+  useEffect(() => {
+    if (isOpen) {
+      const targetRole = initialRole || "student";
+      setSelectedRole(targetRole);
+      if (targetRole === "teacher") {
+        setUsername("cuong.toan@thpt.edu.vn");
+        setPassword("123456");
+      } else {
+        setUsername("hs.cuong");
+        setPassword("123456");
+      }
+    }
+  }, [isOpen, initialRole]);
 
   if (!isOpen) return null;
 
-  const handleLoginSubmit = (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!email.trim()) return;
-    onLoginSuccess(email.trim(), selectedRole);
-    onClose();
+  const handleRoleTabChange = (role: UserRole) => {
+    setSelectedRole(role);
+    if (role === "teacher") {
+      setUsername("cuong.toan@thpt.edu.vn");
+      setPassword("123456");
+    } else {
+      setUsername("hs.cuong");
+      setPassword("123456");
+    }
   };
 
-  const handleQuickLogin = (role: UserRole, userEmail: string) => {
-    onLoginSuccess(userEmail, role);
+  const handleLoginSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    const finalEmail = username.trim()
+      ? username.includes("@")
+        ? username.trim()
+        : `${username.trim()}@hocsinh.thpt`
+      : selectedRole === "teacher"
+      ? "cuong.toan@thpt.edu.vn"
+      : "zalo2299k@gmail.com";
+
+    onLoginSuccess(finalEmail, selectedRole);
     onClose();
   };
 
@@ -93,151 +116,130 @@ export const LoginModal: React.FC<LoginModalProps> = ({
             </div>
           </div>
         ) : (
-          /* Login View */
-          <div>
-            {/* Header */}
-            <div className="bg-gradient-to-r from-[#004d40] via-[#00695c] to-[#004d40] px-6 py-5 text-white flex items-center justify-between">
-              <div className="flex items-center gap-3">
-                <div className="w-10 h-10 rounded-2xl bg-white/10 flex items-center justify-center border border-white/20">
-                  <LogIn className="w-5 h-5 text-teal-200" />
-                </div>
-                <div>
-                  <h3 className="text-base font-black">Đăng nhập Hệ thống</h3>
-                  <p className="text-[11px] text-teal-100/80">Tự luyện Toán THPT GDPT 2018</p>
-                </div>
-              </div>
+          /* Login View Matching media_1788534395002.png */
+          <div className="p-6 sm:p-8 relative">
+            {/* Close Button at Top-Right */}
+            <button
+              onClick={onClose}
+              className="absolute top-5 right-5 w-8 h-8 rounded-full bg-slate-100 hover:bg-slate-200 text-slate-400 hover:text-slate-700 flex items-center justify-center transition-all"
+              title="Đóng"
+            >
+              <X className="w-4 h-4" />
+            </button>
+
+            {/* Top Brand Icon */}
+            <div className="w-16 h-16 mx-auto rounded-2xl bg-gradient-to-tr from-purple-700 via-indigo-600 to-pink-500 flex items-center justify-center text-white shadow-lg shadow-purple-500/25 mb-4">
+              <GraduationCap className="w-8 h-8 text-amber-300" />
+            </div>
+
+            {/* Title & Subtitle */}
+            <h2 className="text-xl sm:text-2xl font-black text-slate-900 text-center tracking-tight uppercase">
+              {selectedRole === "student" ? "ĐĂNG NHẬP HỌC SINH" : "ĐĂNG NHẬP GIÁO VIÊN / ADMIN"}
+            </h2>
+            <p className="text-xs text-slate-500 text-center mt-1 mb-6 font-medium">
+              Hệ thống Luyện thi Tốt nghiệp THPT Toán • Thầy Phan Quốc Cường
+            </p>
+
+            {/* Segmented Control: 🎓 Học sinh vs 👩‍🏫 Giáo viên / Admin */}
+            <div className="bg-slate-100 p-1 rounded-2xl flex items-center gap-1 mb-5">
               <button
-                onClick={onClose}
-                className="w-7 h-7 rounded-full bg-white/10 hover:bg-white/20 text-teal-100 hover:text-white flex items-center justify-center transition-colors"
+                type="button"
+                onClick={() => handleRoleTabChange("student")}
+                className={`py-2.5 px-3 rounded-xl flex items-center justify-center gap-2 flex-1 transition-all text-xs sm:text-sm font-extrabold ${
+                  selectedRole === "student"
+                    ? "bg-blue-600 text-white shadow-sm"
+                    : "text-slate-600 hover:text-slate-900"
+                }`}
               >
-                <X className="w-4 h-4" />
+                <GraduationCap className="w-4 h-4" />
+                <span>Học sinh</span>
+              </button>
+
+              <button
+                type="button"
+                onClick={() => handleRoleTabChange("teacher")}
+                className={`py-2.5 px-3 rounded-xl flex items-center justify-center gap-2 flex-1 transition-all text-xs sm:text-sm font-extrabold ${
+                  selectedRole === "teacher" || selectedRole === "admin"
+                    ? "bg-blue-600 text-white shadow-sm"
+                    : "text-slate-600 hover:text-slate-900"
+                }`}
+              >
+                <Shield className="w-4 h-4" />
+                <span>Giáo viên / Admin</span>
               </button>
             </div>
 
-            {/* Form */}
-            <form onSubmit={handleLoginSubmit} className="p-6 space-y-4">
+            {/* Login Form */}
+            <form onSubmit={handleLoginSubmit} className="space-y-4">
               <div>
-                <label className="block text-xs font-bold text-slate-700 mb-1">
-                  Địa chỉ Email
+                <label className="block text-xs font-black text-slate-800 mb-1.5">
+                  {selectedRole === "student"
+                    ? "Tên đăng nhập / Mã học sinh"
+                    : "Tên đăng nhập / Email Giáo viên"}
                 </label>
-                <div className="relative">
-                  <Mail className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
-                  <input
-                    type="email"
-                    required
-                    value={email}
-                    onChange={(e) => setEmail(e.target.value)}
-                    placeholder="email@vidu.com"
-                    className="w-full pl-9 pr-3 py-2 bg-slate-50 focus:bg-white rounded-xl text-xs font-bold border border-slate-300 focus:border-teal-500 focus:outline-hidden font-mono"
-                  />
-                </div>
+                <input
+                  type="text"
+                  required
+                  value={username}
+                  onChange={(e) => setUsername(e.target.value)}
+                  placeholder={
+                    selectedRole === "student"
+                      ? "Nhập tên đăng nhập hoặc mã HS"
+                      : "Nhập email hoặc mã giáo viên..."
+                  }
+                  className="w-full px-4 py-3 rounded-xl border border-slate-200 focus:border-blue-500 focus:ring-4 focus:ring-blue-500/10 text-sm font-medium text-slate-800 outline-none transition-all placeholder:text-slate-400 bg-white"
+                />
               </div>
 
               <div>
-                <label className="block text-xs font-bold text-slate-700 mb-1">
+                <label className="block text-xs font-black text-slate-800 mb-1.5">
                   Mật khẩu
                 </label>
-                <div className="relative">
-                  <Lock className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
-                  <input
-                    type="password"
-                    required
-                    value={password}
-                    onChange={(e) => setPassword(e.target.value)}
-                    placeholder="••••••••"
-                    className="w-full pl-9 pr-3 py-2 bg-slate-50 focus:bg-white rounded-xl text-xs font-bold border border-slate-300 focus:border-teal-500 focus:outline-hidden font-mono"
-                  />
-                </div>
+                <input
+                  type="password"
+                  required
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                  placeholder="Nhập mật khẩu..."
+                  className="w-full px-4 py-3 rounded-xl border border-slate-200 focus:border-blue-500 focus:ring-4 focus:ring-blue-500/10 text-sm font-medium text-slate-800 outline-none transition-all placeholder:text-slate-400 bg-white"
+                />
               </div>
 
-              <div>
-                <label className="block text-xs font-bold text-slate-700 mb-1">
-                  Vai trò đăng nhập
-                </label>
-                <div className="grid grid-cols-3 gap-2">
+              {/* Submit Button */}
+              <button
+                type="submit"
+                className="w-full mt-2 py-3.5 rounded-2xl bg-blue-600 hover:bg-blue-700 active:scale-[0.99] text-white font-black text-sm tracking-wide shadow-lg shadow-blue-500/25 transition-all flex items-center justify-center gap-2 cursor-pointer"
+              >
+                <span>Đăng nhập</span>
+                <ArrowRight className="w-4 h-4 stroke-[3]" />
+              </button>
+
+              {/* Quick Login Hint */}
+              <div className="pt-3 border-t border-slate-100 flex items-center justify-between text-[11px] text-slate-400">
+                <span>Tài khoản mẫu:</span>
+                <div className="flex items-center gap-2 font-bold">
                   <button
                     type="button"
-                    onClick={() => setSelectedRole("student")}
-                    className={`py-2 rounded-xl text-xs font-bold border transition-all ${
-                      selectedRole === "student"
-                        ? "bg-blue-600 text-white border-blue-600 shadow-xs"
-                        : "bg-slate-50 hover:bg-slate-100 text-slate-700 border-slate-300"
-                    }`}
+                    onClick={() => {
+                      handleRoleTabChange("student");
+                      setUsername("hs.cuong");
+                      setPassword("123456");
+                    }}
+                    className="text-blue-600 hover:underline"
                   >
                     Học sinh
                   </button>
+                  <span>•</span>
                   <button
                     type="button"
-                    onClick={() => setSelectedRole("teacher")}
-                    className={`py-2 rounded-xl text-xs font-bold border transition-all ${
-                      selectedRole === "teacher"
-                        ? "bg-indigo-600 text-white border-indigo-600 shadow-xs"
-                        : "bg-slate-50 hover:bg-slate-100 text-slate-700 border-slate-300"
-                    }`}
+                    onClick={() => {
+                      handleRoleTabChange("teacher");
+                      setUsername("cuong.toan@thpt.edu.vn");
+                      setPassword("123456");
+                    }}
+                    className="text-purple-600 hover:underline"
                   >
-                    Giáo viên
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => setSelectedRole("admin")}
-                    className={`py-2 rounded-xl text-xs font-bold border transition-all ${
-                      selectedRole === "admin"
-                        ? "bg-slate-800 text-white border-slate-800 shadow-xs"
-                        : "bg-slate-50 hover:bg-slate-100 text-slate-700 border-slate-300"
-                    }`}
-                  >
-                    Admin
-                  </button>
-                </div>
-              </div>
-
-              <button
-                type="submit"
-                className="w-full py-2.5 rounded-xl bg-gradient-to-r from-teal-700 to-emerald-700 hover:from-teal-800 hover:to-emerald-800 text-white text-xs font-bold shadow-md shadow-teal-700/20 active:scale-95 transition-all"
-              >
-                Đăng nhập vào Hệ thống
-              </button>
-
-              {/* Quick Login One-Click Options */}
-              <div className="pt-2 border-t border-slate-200 space-y-2">
-                <span className="text-[11px] font-bold text-slate-500 uppercase tracking-wider block text-center">
-                  Hoặc đăng nhập nhanh bằng tài khoản có sẵn:
-                </span>
-                <div className="space-y-1.5">
-                  <button
-                    type="button"
-                    onClick={() => handleQuickLogin("student", "zalo2299k@gmail.com")}
-                    className="w-full p-2 rounded-xl bg-slate-50 hover:bg-blue-50 border border-slate-200 hover:border-blue-300 text-slate-700 text-xs font-semibold flex items-center justify-between transition-all"
-                  >
-                    <div className="flex items-center gap-2">
-                      <GraduationCap className="w-3.5 h-3.5 text-blue-600" />
-                      <span>Học sinh: Phan Quốc Cường</span>
-                    </div>
-                    <span className="text-[11px] font-mono text-slate-500">zalo2299k@gmail.com</span>
-                  </button>
-
-                  <button
-                    type="button"
-                    onClick={() => handleQuickLogin("teacher", "cuong.toan@thpt.edu.vn")}
-                    className="w-full p-2 rounded-xl bg-slate-50 hover:bg-indigo-50 border border-slate-200 hover:border-indigo-300 text-slate-700 text-xs font-semibold flex items-center justify-between transition-all"
-                  >
-                    <div className="flex items-center gap-2">
-                      <BookOpen className="w-3.5 h-3.5 text-indigo-600" />
-                      <span>Giáo viên: Thầy Phan Quốc Cường</span>
-                    </div>
-                    <span className="text-[11px] font-mono text-slate-500">cuong.toan@thpt.edu.vn</span>
-                  </button>
-
-                  <button
-                    type="button"
-                    onClick={() => handleQuickLogin("admin", "zalo2299k@gmail.com")}
-                    className="w-full p-2 rounded-xl bg-slate-50 hover:bg-slate-100 border border-slate-200 text-slate-700 text-xs font-semibold flex items-center justify-between transition-all"
-                  >
-                    <div className="flex items-center gap-2">
-                      <Shield className="w-3.5 h-3.5 text-slate-800" />
-                      <span>Quản trị viên (Admin Portal)</span>
-                    </div>
-                    <span className="text-[11px] font-mono text-slate-500">zalo2299k@gmail.com</span>
+                    Thầy Cường
                   </button>
                 </div>
               </div>
