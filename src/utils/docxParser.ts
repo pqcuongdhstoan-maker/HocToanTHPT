@@ -53,10 +53,14 @@ export function normalizeMathLatex(text: string): string {
     .replace(/Ω/g, "\\Omega ")
     .replace(/√\(([^)]+)\)/g, "\\sqrt{$1}")
     .replace(/√(\d+|\w+)/g, "\\sqrt{$1}")
-    // Vectơ notation (e.g. vecto u, vecto AB, véc tơ a)
-    .replace(/(?:vecto|véc tơ|vector)\s+([A-Z]{2})/gi, "\\vec{$1}")
-    .replace(/(?:vecto|véc tơ|vector)\s+([a-z])/gi, "\\vec{$1}")
-    .replace(/\s+/g, " ");
+    // Vectơ notation (e.g. vecto u, vecto AB, véc tơ a) - strictly with word boundary to avoid \vec{bi}ết bug
+    .replace(/(?:vecto|véc tơ|vector)\s+([A-Z]{2})\b/gi, "\\vec{$1}")
+    .replace(/(?:vecto|véc tơ|vector)\s+([a-zA-Z])\b/g, "\\vec{$1}")
+    .replace(/(?:vecto|véc tơ|vector)\b/gi, "vectơ")
+    // Preserve newlines, only collapse repeated horizontal spaces and excessive blank lines
+    .replace(/[ \t]+/g, " ")
+    .replace(/\n{3,}/g, "\n\n");
+
 
   return cleaned.trim();
 }
