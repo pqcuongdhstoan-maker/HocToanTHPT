@@ -111,6 +111,8 @@ export interface StudentProfile {
   id: string;
   name: string;
   studentCode: string;
+  email?: string;
+  role?: UserRole;
   grade: GradeLevel;
   avatar: string;
   school: string;
@@ -118,6 +120,22 @@ export interface StudentProfile {
   streakDays: number;
   progress: Record<string, StudentProgress>; // keyed by lessonId
 }
+
+export interface AppUser {
+  id: string;
+  name: string;
+  email: string;
+  role: UserRole;
+  grade?: GradeLevel;
+  school?: string;
+  avatar?: string;
+  createdAt: string;
+  status: "active" | "locked";
+  points?: number;
+  streakDays?: number;
+  cheatAlerts?: number;
+}
+
 
 export interface AntiCheatEvent {
   timestamp: string;

@@ -21,8 +21,9 @@ interface VisualFormulaEditorModalProps {
   onClose: () => void;
   initialLatex?: string;
   initialIsBlock?: boolean;
-  onInsertFormula: (formulaWithDelimiters: string, rawLatex: string, isBlock: boolean) => void;
+  onInsertFormula?: (formulaWithDelimiters: string, rawLatex: string, isBlock: boolean) => void;
 }
+
 
 type TabCategory = "123" | "f()" | "RELATIONS" | "ABC" | "GREEK";
 
@@ -142,6 +143,20 @@ export const VisualFormulaEditorModal: React.FC<VisualFormulaEditorModalProps> =
     }
   };
 
+  const [isCopied, setIsCopied] = useState<boolean>(false);
+
+  const handleCopyLatex = async () => {
+    const cleanLatex = latex.trim();
+    if (!cleanLatex) {
+      alert("Vui lòng nhập hoặc chọn ít nhất một ký hiệu công thức!");
+      return;
+    }
+    const formatted = isBlock ? `$$${cleanLatex}$$` : `$${cleanLatex}$`;
+    await navigator.clipboard.writeText(formatted);
+    setIsCopied(true);
+    setTimeout(() => setIsCopied(false), 2000);
+  };
+
   const handleConfirmInsert = () => {
     const cleanLatex = latex.trim();
     if (!cleanLatex) {
@@ -151,9 +166,15 @@ export const VisualFormulaEditorModal: React.FC<VisualFormulaEditorModalProps> =
 
     // Format with standard delimiter (Section 5: Không bọc $ hai lần)
     const formatted = isBlock ? `$$${cleanLatex}$$` : `$${cleanLatex}$`;
-    onInsertFormula(formatted, cleanLatex, isBlock);
+    if (onInsertFormula) {
+      onInsertFormula(formatted, cleanLatex, isBlock);
+    } else {
+      navigator.clipboard.writeText(formatted);
+      alert(`Đã sao chép công thức vào bộ nhớ tạm: ${formatted}`);
+    }
     onClose();
   };
+
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-5 bg-slate-900/70 backdrop-blur-xs overflow-y-auto animate-fadeIn">
@@ -616,12 +637,21 @@ export const VisualFormulaEditorModal: React.FC<VisualFormulaEditorModalProps> =
 
             <button
               type="button"
+              onClick={handleCopyLatex}
+              className="px-4 py-2 rounded-xl bg-slate-100 hover:bg-slate-200 text-teal-800 font-bold text-xs transition-colors"
+            >
+              {isCopied ? "Đã chép LaTeX!" : "Sao chép LaTeX"}
+            </button>
+
+            <button
+              type="button"
               onClick={handleConfirmInsert}
               className="px-6 py-2.5 rounded-xl bg-teal-600 hover:bg-teal-700 text-white font-black text-sm shadow-md hover:shadow-lg active:scale-98 transition-all flex items-center gap-2"
             >
               <Check className="w-4 h-4" />
               <span>Chèn công thức</span>
             </button>
+
           </div>
         </div>
       </div>

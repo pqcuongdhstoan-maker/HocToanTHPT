@@ -15,17 +15,26 @@ import { ApiKeySettingsModal } from "./components/ApiKeySettingsModal";
 import { MathFunctionGrapherModal } from "./components/MathFunctionGrapherModal";
 import { OxyzViewerModal } from "./components/OxyzViewerModal";
 import { SpeedrunMathChallengeModal } from "./components/SpeedrunMathChallengeModal";
+import { MarkdownTableModal } from "./components/MarkdownTableModal";
+import { MathTypeOleConverterModal } from "./components/MathTypeOleConverterModal";
+import { UserProfileModal } from "./components/UserProfileModal";
+import { UserManagementModal } from "./components/UserManagementModal";
+import { LoginModal } from "./components/LoginModal";
+import { VisualFormulaEditorModal } from "./components/VisualFormulaEditorModal";
 import { getStoredApiKey } from "./utils/geminiClient";
 
 const DEFAULT_STUDENT: StudentProfile = {
   id: "stu_1",
   name: "Phan Quốc Cường",
   studentCode: "THPT-2025-01",
+  email: "zalo2299k@gmail.com",
+  role: "student",
   grade: 12,
   avatar: "https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=150&auto=format&fit=crop",
   school: "THPT Chuyên Toán",
   points: 250,
   streakDays: 7,
+
   progress: {
     g12_c1_l1: {
       lessonId: "g12_c1_l1",
@@ -57,6 +66,16 @@ export default function App() {
   const [isGrapherModalOpen, setIsGrapherModalOpen] = useState<boolean>(false);
   const [isOxyzModalOpen, setIsOxyzModalOpen] = useState<boolean>(false);
   const [isSpeedrunModalOpen, setIsSpeedrunModalOpen] = useState<boolean>(false);
+
+  // New Navigation Bar Tab Modals (Per screenshot request)
+  const [isMarkdownTableModalOpen, setIsMarkdownTableModalOpen] = useState<boolean>(false);
+  const [isEquationModalOpen, setIsEquationModalOpen] = useState<boolean>(false);
+  const [isMathTypeOleModalOpen, setIsMathTypeOleModalOpen] = useState<boolean>(false);
+  const [isProfileModalOpen, setIsProfileModalOpen] = useState<boolean>(false);
+  const [isUserManagementModalOpen, setIsUserManagementModalOpen] = useState<boolean>(false);
+  const [isLoginModalOpen, setIsLoginModalOpen] = useState<boolean>(false);
+  const [isLogoutConfirm, setIsLogoutConfirm] = useState<boolean>(false);
+
 
   // Lesson-level Word/MathType import state
   const [isDocxModalOpen, setIsDocxModalOpen] = useState<boolean>(false);
@@ -339,7 +358,6 @@ export default function App() {
           setActiveLesson(null);
         }}
         student={student}
-        onOpenAiChat={() => setIsAiModalOpen(true)}
         activeView={
           activeLesson
             ? "practice"
@@ -352,10 +370,23 @@ export default function App() {
         onNavigateHome={() => setActiveLesson(null)}
         onOpenApiKeySettings={() => setIsApiKeyModalOpen(true)}
         hasApiKey={hasApiKey}
+        /* 7 Tabs from the requested screenshot */
+        onOpenGeminiHub={() => setIsAiModalOpen(true)}
+        onOpenMarkdownTable={() => setIsMarkdownTableModalOpen(true)}
+        onOpenEquation={() => setIsEquationModalOpen(true)}
+        onOpenMathTypeOle={() => setIsMathTypeOleModalOpen(true)}
+        onOpenProfile={() => setIsProfileModalOpen(true)}
+        onOpenUserManagement={() => setIsUserManagementModalOpen(true)}
+        onLogout={() => {
+          setIsLogoutConfirm(true);
+          setIsLoginModalOpen(true);
+        }}
+        /* Interactive Math Tools */
         onOpenGrapher={() => setIsGrapherModalOpen(true)}
         onOpenOxyz={() => setIsOxyzModalOpen(true)}
         onOpenSpeedrun={() => setIsSpeedrunModalOpen(true)}
       />
+
 
       {/* Main Container */}
       <main className="flex-1 max-w-7xl w-full mx-auto px-4 sm:px-6 lg:px-8 pt-6">
@@ -499,8 +530,65 @@ export default function App() {
         onStartExamWithQuestions={handleStartDynamicExam}
       />
 
+      {/* New Navigation Modals per requested screenshot */}
+      {/* 2. Bảng Markdown Modal */}
+      <MarkdownTableModal
+        isOpen={isMarkdownTableModalOpen}
+        onClose={() => setIsMarkdownTableModalOpen(false)}
+      />
+
+      {/* 3. Equation Formula Editor Standalone Modal */}
+      <VisualFormulaEditorModal
+        isOpen={isEquationModalOpen}
+        onClose={() => setIsEquationModalOpen(false)}
+      />
+
+      {/* 4. MathType OLE to LaTeX Converter Modal */}
+      <MathTypeOleConverterModal
+        isOpen={isMathTypeOleModalOpen}
+        onClose={() => setIsMathTypeOleModalOpen(false)}
+      />
+
+      {/* 5. User Profile Modal for zalo2299k@gmail.com */}
+      <UserProfileModal
+        isOpen={isProfileModalOpen}
+        onClose={() => setIsProfileModalOpen(false)}
+        student={student}
+        currentRole={currentRole}
+        onUpdateProfile={(updated) => setStudent((prev) => ({ ...prev, ...updated }))}
+      />
+
+      {/* 6. User Management & Admin Modal */}
+      <UserManagementModal
+        isOpen={isUserManagementModalOpen}
+        onClose={() => setIsUserManagementModalOpen(false)}
+        onUnlockAllLevels={handleUnlockAllLevels}
+        onResetProgress={handleResetProgress}
+        onSelectRole={(r) => {
+          setCurrentRole(r);
+          setActiveLesson(null);
+        }}
+      />
+
+      {/* 7. Login & Logout Modal */}
+      <LoginModal
+        isOpen={isLoginModalOpen}
+        onClose={() => setIsLoginModalOpen(false)}
+        isLogoutConfirm={isLogoutConfirm}
+        currentUserEmail={student.email || "zalo2299k@gmail.com"}
+        onConfirmLogout={() => {
+          setIsLogoutConfirm(false);
+        }}
+        onLoginSuccess={(email, role) => {
+          setStudent((prev) => ({ ...prev, email }));
+          setCurrentRole(role);
+          setIsLoginModalOpen(false);
+        }}
+      />
+
       {/* Floating AI Chat Assistant Icon at Bottom Right ("Trợ lý AI") */}
       <FloatingAiAssistant student={student} currentGrade={currentGrade} />
     </div>
+
   );
 }
